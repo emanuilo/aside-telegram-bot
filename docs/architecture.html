@@ -1,0 +1,404 @@
+<title>Aside Telegram Bot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column; two wide figures that scroll sideways on phones. */
+:root {
+  --bg: #f4f6f8;
+  --panel: #ffffff;
+  --fg: #17212b;
+  --muted: #5a6876;
+  --line: #c9d2db;
+  --accent: #1f7ac2;      /* Telegram side */
+  --claude: #b4542a;      /* Claude / billing path */
+  --tint: #e6eff7;
+  --display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12181e; --panel: #1a222a; --fg: #e3e9ee; --muted: #93a1ae;
+    --line: #34414d; --accent: #5aa8e6; --claude: #e38a5f; --tint: #1c2b38;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12181e; --panel: #1a222a; --fg: #e3e9ee; --muted: #93a1ae;
+  --line: #34414d; --accent: #5aa8e6; --claude: #e38a5f; --tint: #1c2b38;
+  color-scheme: dark;
+}
+body { background: var(--bg); color: var(--fg); font: 15px/1.6 var(--body); }
+.wrap { max-width: 1040px; margin: 0 auto; padding: 40px 16px 64px; display: grid; gap: 40px; }
+header { display: grid; gap: 10px; }
+.eyebrow { font: 500 12px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+h1 { font: 600 clamp(28px, 5vw, 40px)/1.1 var(--display); margin: 0; text-wrap: balance; }
+h2 { font: 600 24px/1.2 var(--display); margin: 0; text-wrap: balance; }
+p { margin: 0; max-width: 68ch; }
+.lede { color: var(--muted); font-size: 16px; }
+code { font: 13px var(--mono); background: var(--tint); padding: 1px 5px; border-radius: 4px; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.facts div { background: var(--panel); padding: 14px 16px; display: grid; gap: 2px; min-width: 0; }
+.facts dt { font: 500 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.facts dd { margin: 0; font-weight: 500; overflow-wrap: anywhere; }
+section { display: grid; gap: 14px; }
+figure { margin: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; display: grid; }
+.scroll { overflow-x: auto; padding: 16px; }
+.scroll svg { display: block; width: 100%; min-width: 820px; height: auto; color: var(--fg); font-family: var(--body); }
+figcaption { border-top: 1px solid var(--line); padding: 12px 16px; color: var(--muted); font-size: 14px; }
+svg .box { fill: var(--panel); stroke: currentColor; stroke-width: 1.2; }
+svg .soft { fill: var(--tint); stroke: var(--line); stroke-width: 1; }
+svg .zone { fill: none; stroke: var(--muted); stroke-width: 1.2; stroke-dasharray: 6 5; }
+svg .t { fill: currentColor; font-size: 13px; font-weight: 600; }
+svg .s { fill: var(--muted); font-size: 11.5px; }
+svg .m { fill: var(--muted); font-size: 11px; font-family: var(--mono); }
+svg .lbl { fill: currentColor; font-size: 11.5px; }
+svg .edge { stroke: currentColor; stroke-width: 1.3; fill: none; }
+svg .dash { stroke-dasharray: 5 4; }
+svg .acc { stroke: var(--accent); }
+svg .cl { stroke: var(--claude); }
+svg .tacc { fill: var(--accent); }
+svg .tcl { fill: var(--claude); }
+svg .life { stroke: var(--line); stroke-width: 1.2; stroke-dasharray: 3 4; }
+svg .loop { fill: none; stroke: var(--muted); stroke-width: 1; }
+svg .note { fill: var(--tint); stroke: var(--line); }
+table { width: 100%; min-width: 640px; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; font-size: 14px; }
+th, td { text-align: left; padding: 9px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 500 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+tbody tr:last-child td { border-bottom: 0; }
+td:first-child { font-weight: 600; white-space: nowrap; }
+.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+.notes div { display: grid; gap: 4px; min-width: 0; }
+.notes h3 { font: 600 16px var(--display); margin: 0; }
+.notes p { color: var(--muted); font-size: 14px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">aside-telegram · how it fits together</span>
+    <h1>Aside Telegram Bot</h1>
+    <p class="lede">A Telegram chat in front of a Claude Agent SDK agent that drives your Aside Browser through the aside MCP. Everything except Telegram and the model runs on your Mac.</p>
+  </header>
+
+  <dl class="facts">
+    <div><dt>Model</dt><dd>claude-sonnet-5-5 · effort medium</dd></div>
+    <div><dt>Billing</dt><dd>Claude subscription via CLAUDE_CODE_OAUTH_TOKEN</dd></div>
+    <div><dt>Agent tools</dt><dd>Only mcp__aside__repl</dd></div>
+    <div><dt>Who can use it</dt><dd>User IDs in ALLOWED_USER_IDS</dd></div>
+  </dl>
+
+  <section>
+    <h2>Architecture</h2>
+    <figure>
+      <div class="scroll">
+        <svg viewBox="0 0 980 560" role="img" aria-label="Your phone talks to the Telegram Bot API. On your Mac, the Python bot long-polls Telegram, hands text to the agent core, which spawns the Claude Code CLI. The CLI calls the Anthropic API with your subscription token and spawns the aside MCP, which drives the Aside Browser.">
+          <defs>
+            <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="context-stroke"/></marker>
+          </defs>
+
+          <!-- Outside: phone + Telegram -->
+          <rect class="box" x="20" y="173" width="130" height="64" rx="8"/>
+          <text class="t" x="85" y="200" text-anchor="middle">Telegram app</text>
+          <text class="s" x="85" y="218" text-anchor="middle">your phone</text>
+
+          <rect class="box" x="180" y="173" width="140" height="64" rx="8" style="stroke:var(--accent)"/>
+          <text class="t" x="250" y="200" text-anchor="middle">Telegram Bot API</text>
+          <text class="s" x="250" y="218" text-anchor="middle">Telegram's cloud</text>
+
+          <line class="edge acc" x1="152" y1="205" x2="178" y2="205" marker-start="url(#a)" marker-end="url(#a)"/>
+
+          <!-- Anthropic, outside the Mac -->
+          <rect class="box" x="720" y="16" width="230" height="58" rx="8" style="stroke:var(--claude)"/>
+          <text class="t" x="835" y="40" text-anchor="middle">Anthropic API</text>
+          <text class="s" x="835" y="58" text-anchor="middle">billed to your Claude plan</text>
+
+          <!-- Mac boundary -->
+          <rect class="zone" x="368" y="100" width="596" height="440" rx="12"/>
+          <text class="m" x="376" y="122">YOUR MAC</text>
+
+          <!-- Python process -->
+          <rect class="soft" x="380" y="140" width="250" height="280" rx="10"/>
+          <text class="m" x="394" y="160">aside-telegram (python)</text>
+
+          <rect class="box" x="396" y="172" width="218" height="62" rx="6"/>
+          <text class="t" x="410" y="194">bot.py</text>
+          <text class="s" x="410" y="211">allowlist · per-chat lock</text>
+          <text class="s" x="410" y="226">progress msg · reply formatting</text>
+
+          <rect class="box" x="396" y="256" width="218" height="62" rx="6"/>
+          <text class="t" x="410" y="278">agent.py · BrowsingAgent</text>
+          <text class="s" x="410" y="295">one ClaudeSDKClient per chat</text>
+          <text class="s" x="410" y="310">no Telegram code</text>
+
+          <rect class="box" x="396" y="340" width="218" height="62" rx="6"/>
+          <text class="t" x="410" y="362">auth.py</text>
+          <text class="s" x="410" y="379">removes ANTHROPIC_API_KEY</text>
+          <text class="s" x="410" y="394">injects only the OAuth token</text>
+
+          <line class="edge" x1="505" y1="234" x2="505" y2="254" marker-end="url(#a)"/>
+          <text class="lbl" x="513" y="248">ask(text)</text>
+          <line class="edge" x1="505" y1="318" x2="505" y2="338" marker-start="url(#a)"/>
+          <text class="lbl" x="513" y="332">env</text>
+
+          <!-- Bot <-> Telegram -->
+          <line class="edge acc" x1="394" y1="205" x2="322" y2="205" marker-start="url(#a)" marker-end="url(#a)"/>
+          <text class="lbl tacc" x="345" y="196" text-anchor="middle">poll</text>
+          <text class="lbl tacc" x="345" y="223" text-anchor="middle">send</text>
+
+          <!-- sessions.json -->
+          <rect class="box" x="380" y="460" width="250" height="52" rx="6"/>
+          <text class="t" x="394" y="481">.state/sessions.json</text>
+          <text class="s" x="394" y="498">chat id → Claude session id</text>
+          <line class="edge" x1="505" y1="420" x2="505" y2="458" marker-end="url(#a)"/>
+          <text class="lbl" x="513" y="444">save · resume</text>
+
+          <!-- Right column -->
+          <rect class="box" x="720" y="140" width="230" height="80" rx="8" style="stroke:var(--claude)"/>
+          <text class="t" x="734" y="162">Claude Code CLI</text>
+          <text class="s" x="734" y="180">bundled with the SDK, 1 per chat</text>
+          <text class="m" x="734" y="198">--permission-mode dontAsk</text>
+          <text class="m" x="734" y="212">--setting-sources= (none)</text>
+
+          <rect class="box" x="720" y="262" width="230" height="60" rx="8"/>
+          <text class="t" x="734" y="285">aside mcp</text>
+          <text class="s" x="734" y="303">stdio server · one tool: repl</text>
+
+          <rect class="box" x="720" y="360" width="230" height="60" rx="8"/>
+          <text class="t" x="734" y="383">Aside Browser</text>
+          <text class="s" x="734" y="401">your real tabs and logins</text>
+
+          <rect class="soft" x="720" y="460" width="230" height="52" rx="6"/>
+          <text class="t" x="734" y="481">Session transcripts</text>
+          <text class="s" x="734" y="498">written by the CLI</text>
+
+          <!-- agent -> CLI -->
+          <polyline class="edge" points="614,287 675,287 675,180 718,180" marker-end="url(#a)"/>
+          <text class="lbl" x="680" y="236">spawns</text>
+          <text class="s" x="680" y="251">JSON</text>
+          <text class="s" x="680" y="265">stream</text>
+
+          <!-- CLI <-> Anthropic -->
+          <line class="edge cl" x1="835" y1="138" x2="835" y2="76" marker-start="url(#a)" marker-end="url(#a)"/>
+          <text class="lbl tcl" x="845" y="92">HTTPS · OAuth token</text>
+          <text class="s" x="845" y="126">Sonnet 5.5 runs there</text>
+
+          <!-- CLI -> aside -->
+          <line class="edge" x1="835" y1="220" x2="835" y2="260" marker-end="url(#a)"/>
+          <text class="lbl" x="845" y="244">repl(code)</text>
+          <line class="edge" x1="835" y1="322" x2="835" y2="358" marker-end="url(#a)"/>
+          <text class="lbl" x="845" y="344">drives tabs</text>
+
+          <!-- sessions -> transcripts -->
+          <line class="edge dash" x1="632" y1="486" x2="718" y2="486" marker-end="url(#a)"/>
+          <text class="lbl" x="675" y="478" text-anchor="middle">resume id</text>
+        </svg>
+      </div>
+      <figcaption>The orange path is the only one that leaves your Mac for Claude, and it carries your subscription token. Telegram (blue) only ever sees chat text and the final reply. The bot polls Telegram, so no port is opened on your machine.</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <h2>What happens when you send a message</h2>
+    <figure>
+      <div class="scroll">
+        <svg viewBox="0 0 980 690" role="img" aria-label="Sequence: your message reaches the bot, passes the allowlist and per-chat lock, goes to the agent core, which queries Claude. Claude loops calling the aside repl tool while the bot shows progress, then the final result is saved and sent back as text and photos.">
+          <defs>
+            <marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="context-stroke"/></marker>
+          </defs>
+
+          <!-- Lifeline heads -->
+          <g>
+            <rect class="box" x="30" y="16" width="120" height="44" rx="6" style="stroke:var(--accent)"/>
+            <text class="t" x="90" y="43" text-anchor="middle">You</text>
+            <rect class="box" x="225" y="16" width="130" height="44" rx="6"/>
+            <text class="t" x="290" y="36" text-anchor="middle">Bot</text>
+            <text class="m" x="290" y="51" text-anchor="middle">bot.py</text>
+            <rect class="box" x="420" y="16" width="140" height="44" rx="6"/>
+            <text class="t" x="490" y="36" text-anchor="middle">Agent core</text>
+            <text class="m" x="490" y="51" text-anchor="middle">agent.py</text>
+            <rect class="box" x="615" y="16" width="150" height="44" rx="6" style="stroke:var(--claude)"/>
+            <text class="t" x="690" y="36" text-anchor="middle">Claude</text>
+            <text class="m" x="690" y="51" text-anchor="middle">CLI + Sonnet 5.5</text>
+            <rect class="box" x="815" y="16" width="130" height="44" rx="6"/>
+            <text class="t" x="880" y="36" text-anchor="middle">Aside</text>
+            <text class="m" x="880" y="51" text-anchor="middle">mcp + browser</text>
+          </g>
+          <line class="life" x1="90" y1="60" x2="90" y2="675"/>
+          <line class="life" x1="290" y1="60" x2="290" y2="675"/>
+          <line class="life" x1="490" y1="60" x2="490" y2="675"/>
+          <line class="life" x1="690" y1="60" x2="690" y2="675"/>
+          <line class="life" x1="880" y1="60" x2="880" y2="675"/>
+
+          <!-- 1 message in -->
+          <line class="edge acc" x1="90" y1="100" x2="288" y2="100" marker-end="url(#b)"/>
+          <text class="lbl" x="190" y="93" text-anchor="middle">text message (via Telegram)</text>
+
+          <!-- 2 allowlist -->
+          <rect class="note" x="190" y="116" width="200" height="26" rx="4"/>
+          <text class="lbl" x="290" y="133" text-anchor="middle">allowlist check · else reject</text>
+
+          <!-- 3 lock -->
+          <rect class="note" x="175" y="152" width="230" height="26" rx="4"/>
+          <text class="lbl" x="290" y="169" text-anchor="middle">per-chat lock · busy → "Queued"</text>
+
+          <!-- 4 ask -->
+          <line class="edge" x1="290" y1="205" x2="488" y2="205" marker-end="url(#b)"/>
+          <text class="lbl" x="390" y="198" text-anchor="middle">ask(text, on_tool)</text>
+
+          <!-- 5 connect -->
+          <rect class="note" x="365" y="220" width="250" height="40" rx="4"/>
+          <text class="lbl" x="490" y="236" text-anchor="middle">first message: spawn CLI + aside,</text>
+          <text class="lbl" x="490" y="251" text-anchor="middle">resume saved session if any</text>
+
+          <!-- typing -->
+          <line class="edge dash acc" x1="290" y1="285" x2="92" y2="285" marker-end="url(#b)"/>
+          <text class="lbl" x="190" y="278" text-anchor="middle">"typing…" every 4s</text>
+
+          <!-- query -->
+          <line class="edge cl" x1="490" y1="315" x2="688" y2="315" marker-end="url(#b)"/>
+          <text class="lbl" x="590" y="308" text-anchor="middle">query(prompt)</text>
+
+          <!-- loop frame -->
+          <rect class="loop" x="200" y="335" width="760" height="170" rx="6"/>
+          <rect x="200" y="335" width="190" height="20" rx="6" fill="var(--tint)"/>
+          <text class="m" x="210" y="349">loop · until model answers</text>
+
+          <line class="edge" x1="690" y1="375" x2="878" y2="375" marker-end="url(#b)"/>
+          <text class="lbl" x="785" y="368" text-anchor="middle">repl(code, title)</text>
+
+          <line class="edge dash" x1="880" y1="408" x2="692" y2="408" marker-end="url(#b)"/>
+          <text class="lbl" x="785" y="401" text-anchor="middle">page text / screenshot</text>
+
+          <line class="edge dash" x1="690" y1="440" x2="492" y2="440" marker-end="url(#b)"/>
+          <text class="lbl" x="590" y="433" text-anchor="middle">tool-use event</text>
+
+          <line class="edge dash" x1="490" y1="466" x2="292" y2="466" marker-end="url(#b)"/>
+          <text class="lbl" x="390" y="459" text-anchor="middle">on_tool(step)</text>
+
+          <line class="edge dash acc" x1="290" y1="490" x2="92" y2="490" marker-end="url(#b)"/>
+          <text class="lbl" x="190" y="483" text-anchor="middle">"Working… step n: title"</text>
+
+          <!-- result -->
+          <line class="edge dash cl" x1="690" y1="535" x2="492" y2="535" marker-end="url(#b)"/>
+          <text class="lbl" x="590" y="528" text-anchor="middle">result: text + session id</text>
+
+          <rect class="note" x="365" y="550" width="250" height="26" rx="4"/>
+          <text class="lbl" x="490" y="567" text-anchor="middle">save session id → sessions.json</text>
+
+          <line class="edge dash" x1="490" y1="600" x2="292" y2="600" marker-end="url(#b)"/>
+          <text class="lbl" x="390" y="593" text-anchor="middle">reply text + images</text>
+
+          <rect class="note" x="175" y="612" width="230" height="26" rx="4"/>
+          <text class="lbl" x="290" y="629" text-anchor="middle">delete status · Markdown → HTML</text>
+
+          <line class="edge acc" x1="290" y1="660" x2="92" y2="660" marker-end="url(#b)"/>
+          <text class="lbl" x="190" y="653" text-anchor="middle">reply (split ≤3500) + ≤5 photos</text>
+        </svg>
+      </div>
+      <figcaption>Solid arrows are requests, dashed arrows are things coming back. The boxed loop repeats once per browser step; the status message updates at most every 2 seconds, so fast steps are skipped.</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <h2>How conversation history is kept</h2>
+    <p>The bot itself stores no messages. Claude Code keeps the full history (your messages, its replies, every browser step and screenshot) in the running CLI process and writes it to a transcript file. The bot only remembers which transcript belongs to which chat.</p>
+    <figure>
+      <div class="scroll">
+        <svg viewBox="0 0 980 380" role="img" aria-label="Each chat has an in-memory ChatState that owns one Claude CLI process. The CLI holds the conversation and appends every message to a transcript file on disk. sessions.json maps chat id to that transcript's session id, so after a restart the CLI is started with resume and reloads the transcript. Aside's JavaScript variables live in the aside MCP process; browser tabs and logins live in the Aside Browser and outlive everything.">
+          <defs>
+            <marker id="c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="context-stroke"/></marker>
+          </defs>
+
+          <!-- Column headers: how long things live -->
+          <text class="m" x="30" y="26">LOST WHEN THE BOT STOPS · memory</text>
+          <text class="m" x="430" y="26">SURVIVES RESTARTS · disk</text>
+          <text class="m" x="790" y="26">OUTSIDE THE BOT</text>
+          <line class="life" x1="380" y1="14" x2="380" y2="366"/>
+          <line class="life" x1="750" y1="14" x2="750" y2="366"/>
+
+          <!-- Memory column -->
+          <rect class="box" x="30" y="50" width="290" height="76" rx="8"/>
+          <text class="t" x="44" y="72">ChatState (one per chat)</text>
+          <text class="s" x="44" y="90">lock · agent · epoch for /stop and /new</text>
+          <text class="s" x="44" y="106">kept in bot.py's memory</text>
+
+          <rect class="box" x="30" y="166" width="290" height="88" rx="8" style="stroke:var(--claude)"/>
+          <text class="t" x="44" y="188">Claude CLI process</text>
+          <text class="s" x="44" y="206">holds the live context: every message,</text>
+          <text class="s" x="44" y="222">tool call, page text and screenshot</text>
+          <text class="s" x="44" y="238">compacts older turns when it gets full</text>
+
+          <rect class="box" x="30" y="296" width="290" height="62" rx="8"/>
+          <text class="t" x="44" y="318">aside mcp sandbox</text>
+          <text class="s" x="44" y="336">JS variables, attached tab handles</text>
+
+          <!-- Disk column -->
+          <rect class="box" x="430" y="50" width="280" height="76" rx="8"/>
+          <text class="t" x="444" y="72">.state/sessions.json</text>
+          <text class="m" x="444" y="91">{"&lt;chat id&gt;": "&lt;session id&gt;"}</text>
+          <text class="s" x="444" y="108">updated after every turn</text>
+
+          <rect class="box" x="430" y="166" width="280" height="88" rx="8"/>
+          <text class="t" x="444" y="188">Transcript &lt;session id&gt;.jsonl</text>
+          <text class="m" x="444" y="206">~/.claude/projects/</text>
+          <text class="m" x="444" y="221">…-aside-telegram--state/</text>
+          <text class="s" x="444" y="240">one JSON line per message, never deleted</text>
+
+          <!-- Outside column -->
+          <rect class="box" x="790" y="296" width="170" height="62" rx="8" style="stroke:var(--accent)"/>
+          <text class="t" x="804" y="318">Aside Browser</text>
+          <text class="s" x="804" y="336">tabs, cookies, logins</text>
+
+          <!-- Edges -->
+          <line class="edge" x1="175" y1="126" x2="175" y2="164" marker-end="url(#c)"/>
+          <text class="lbl" x="184" y="150">owns one client</text>
+
+          <line class="edge" x1="320" y1="88" x2="428" y2="88" marker-end="url(#c)"/>
+          <text class="lbl" x="374" y="80" text-anchor="middle">lookup</text>
+
+          <line class="edge" x1="570" y1="126" x2="570" y2="164" marker-end="url(#c)"/>
+          <text class="lbl" x="579" y="150">id = file name</text>
+
+          <line class="edge cl" x1="320" y1="196" x2="428" y2="196" marker-end="url(#c)"/>
+          <text class="lbl tcl" x="374" y="188" text-anchor="middle">appends</text>
+          <line class="edge dash cl" x1="428" y1="228" x2="322" y2="228" marker-end="url(#c)"/>
+          <text class="lbl tcl" x="374" y="246" text-anchor="middle">--resume</text>
+
+          <line class="edge" x1="175" y1="254" x2="175" y2="294" marker-end="url(#c)"/>
+          <text class="lbl" x="184" y="278">spawns</text>
+
+          <line class="edge acc" x1="320" y1="327" x2="788" y2="327" marker-end="url(#c)"/>
+          <text class="lbl" x="555" y="319" text-anchor="middle">drives tabs</text>
+        </svg>
+      </div>
+      <figcaption>Left to right is how long things last. A restart wipes the left column, then <code>--resume</code> rebuilds the Claude context from the transcript. Aside's JS variables are not rebuilt, but your browser tabs are still open.</figcaption>
+    </figure>
+
+    <div class="scroll" style="padding:0">
+      <table>
+        <thead><tr><th>Event</th><th>Claude process</th><th>sessions.json</th><th>What the agent remembers</th></tr></thead>
+        <tbody>
+          <tr><td>First message in a chat</td><td>Started fresh</td><td>New id saved</td><td>Nothing yet</td></tr>
+          <tr><td>Follow-up message</td><td>Same process</td><td>Unchanged</td><td>Everything so far</td></tr>
+          <tr><td>/stop</td><td>Turn interrupted, process kept</td><td>Unchanged</td><td>Everything, including the partial turn</td></tr>
+          <tr><td>/new</td><td>Closed</td><td>Entry removed</td><td>Nothing. The old transcript stays on disk</td></tr>
+          <tr><td>Bot restart</td><td>Restarted with <code>--resume</code></td><td>Read back</td><td>Everything, from the transcript</td></tr>
+          <tr><td>Agent error</td><td>Closed, resumed next message</td><td>Kept</td><td>Everything up to the error</td></tr>
+          <tr><td>Very long chat</td><td>Auto-compacts older turns</td><td>Unchanged</td><td>A summary of older turns, recent ones in full</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Edge cases</h2>
+    <div class="notes">
+      <div><h3>/stop</h3><p>Interrupts the running turn through the SDK and drops anything queued behind it. The reply ends with “(stopped)”.</p></div>
+      <div><h3>/new</h3><p>Closes the CLI for that chat and forgets its session id. The next message starts a fresh conversation.</p></div>
+      <div><h3>Message while busy</h3><p>You get “Queued”. It runs after the current turn, in order, unless /stop or /new comes first.</p></div>
+      <div><h3>Bot restart</h3><p>Messages sent while it was down are skipped. Conversations resume from <code>sessions.json</code>; a failed resume starts fresh.</p></div>
+      <div><h3>Agent crash</h3><p>You get the error text. The CLI is closed and respawned on your next message, resuming the same session.</p></div>
+      <div><h3>Irreversible actions</h3><p>The system prompt makes the agent ask you in chat before buying, sending, submitting, deleting or changing settings.</p></div>
+    </div>
+  </section>
+</div>
