@@ -30,13 +30,14 @@ def _client(pages, calls):
         calls.append(request)
         after = request.url.params.get("after_id")
         return httpx.Response(200, json=pages[after])
+
     return httpx.AsyncClient(transport=httpx.MockTransport(handler))
 
 
 def test_sdk_levels_come_from_the_sdk_type():
     hint = typing.get_type_hints(ClaudeAgentOptions)["effort"]
     literal = next(a for a in typing.get_args(hint) if typing.get_origin(a) is typing.Literal)
-    assert M.SDK_EFFORT_LEVELS == typing.get_args(literal)
+    assert typing.get_args(literal) == M.SDK_EFFORT_LEVELS
     assert M.SDK_EFFORT_LEVELS[:3] == ("low", "medium", "high")
 
 
@@ -53,15 +54,22 @@ def test_headers_use_bearer_oauth():
 def test_parse_sorts_newest_first_and_filters_effort():
     future = _effort("high")
     future["ultra"] = {"supported": True}  # a level the SDK doesn't know
-    models = parse_models([
-        _entry("old", "2024-01-01T00:00:00Z"),
-        _entry("broken-date", "nope"),
-        _entry("new", "2026-09-28T00:00:00Z", _effort("low", "medium", "high", "xhigh", "max"), "New"),
-        _entry("partial", "2026-02-01T00:00:00Z", _effort("low", "high", "max")),
-        _entry("noeffort", "2025-10-15T00:00:00Z", _effort("low", supported=False)),
-        _entry("future", "2026-05-01T00:00:00Z", future),
-        {"display_name": "no id"},
-    ])
+    models = parse_models(
+        [
+            _entry("old", "2024-01-01T00:00:00Z"),
+            _entry("broken-date", "nope"),
+            _entry(
+                "new",
+                "2026-09-28T00:00:00Z",
+                _effort("low", "medium", "high", "xhigh", "max"),
+                "New",
+            ),
+            _entry("partial", "2026-02-01T00:00:00Z", _effort("low", "high", "max")),
+            _entry("noeffort", "2025-10-15T00:00:00Z", _effort("low", supported=False)),
+            _entry("future", "2026-05-01T00:00:00Z", future),
+            {"display_name": "no id"},
+        ]
+    )
     assert [m.id for m in models] == ["new", "future", "partial", "noeffort", "old", "broken-date"]
     by = {m.id: m for m in models}
     assert by["new"].display_name == "New"
@@ -105,12 +113,23 @@ def test_fetch_raises_on_http_error():
 
 
 def _write_cache(path, age, models=None):
-    path.write_text(json.dumps({
-        "fetched_at": time.time() - age,
-        "models": models if models is not None else [
-            {"id": "cached", "display_name": "Cached", "created_at": "", "effort_levels": ["high"]}
-        ],
-    }))
+    path.write_text(
+        json.dumps(
+            {
+                "fetched_at": time.time() - age,
+                "models": models
+                if models is not None
+                else [
+                    {
+                        "id": "cached",
+                        "display_name": "Cached",
+                        "created_at": "",
+                        "effort_levels": ["high"],
+                    }
+                ],
+            }
+        )
+    )
 
 
 def test_cache_freshness(tmp_path):
@@ -182,13 +201,16 @@ def test_resolve_by_id_name_or_unique_prefix(tmp_path):
     assert cat.resolve("claude-nope") is None
 
 
-@pytest.mark.parametrize("levels, preferred, expected", [
-    (None, "max", "max"),  # unknown model: keep as is
-    ([], "medium", None),  # no effort support: omit
-    (["low", "medium", "high"], "medium", "medium"),
-    (["low", "medium", "high", "max"], "xhigh", "high"),  # nearest lower
-    (["high", "max"], "low", "high"),  # nothing lower: lowest supported
-    (["low"], None, None),
-])
+@pytest.mark.parametrize(
+    "levels, preferred, expected",
+    [
+        (None, "max", "max"),  # unknown model: keep as is
+        ([], "medium", None),  # no effort support: omit
+        (["low", "medium", "high"], "medium", "medium"),
+        (["low", "medium", "high", "max"], "xhigh", "high"),  # nearest lower
+        (["high", "max"], "low", "high"),  # nothing lower: lowest supported
+        (["low"], None, None),
+    ],
+)
 def test_resolve_effort(levels, preferred, expected):
     assert resolve_effort(levels, preferred) == expected

@@ -9,11 +9,10 @@ from __future__ import annotations
 
 import base64
 import binascii
-import hashlib
 import datetime as _dt
+import hashlib
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any
 
 from claude_agent_sdk import (
@@ -31,16 +30,10 @@ from loguru import logger
 
 from .auth import build_cli_env
 from .config import AgentConfig
+from .skills import SkillPlugin
 
 MCP_SERVER_NAME = "aside"
 REPL_TOOL = f"mcp__{MCP_SERVER_NAME}__repl"
-
-# Local Claude Code plugin shipped with this package. Its only purpose is to
-# carry the skills we vendor (see plugin/skills/); it's loaded with
-# --plugin-dir, so no settings sources or user skills/plugins are involved.
-PLUGIN_DIR = Path(__file__).resolve().parent / "plugin"
-PLUGIN_NAME = "aside-telegram"
-SKILLS = [f"{PLUGIN_NAME}:1password"]
 
 SYSTEM_PROMPT = """\
 You are a web-browsing assistant that the user talks to through a Telegram chat. \
@@ -82,18 +75,21 @@ Today's date is {today}.
 """
 
 
-def instructions_fingerprint() -> str:
-    """Hash of the agent's instructions (system prompt template + bundled skills).
+def instructions_fingerprint(plugin: SkillPlugin | None) -> str:
+    """Hash of the agent's instructions (system prompt template + loaded skills).
 
     Claude Code keeps a session's original system prompt when it is resumed,
     so a session started under different instructions must not be resumed.
+    Every file of the built plugin is hashed, including the Aside skills
+    copied into it, so an Aside update also starts fresh sessions.
     """
     h = hashlib.sha256(SYSTEM_PROMPT.encode())
-    h.update("\0".join(SKILLS).encode())
-    for path in sorted(PLUGIN_DIR.rglob("*")):
-        if path.is_file():
-            h.update(str(path.relative_to(PLUGIN_DIR)).encode())
-            h.update(path.read_bytes())
+    if plugin is not None:
+        h.update("\0".join(plugin.skills).encode())
+        for path in sorted(plugin.path.rglob("*")):
+            if path.is_file():
+                h.update(str(path.relative_to(plugin.path)).encode())
+                h.update(path.read_bytes())
     return h.hexdigest()[:16]
 
 
@@ -200,9 +196,7 @@ class BrowsingAgent:
         return ClaudeAgentOptions(
             model=self.config.model,
             effort=self.config.effort,  # type: ignore[arg-type]
-            system_prompt=SYSTEM_PROMPT.format(
-                tool=REPL_TOOL, today=_dt.date.today().isoformat()
-            ),
+            system_prompt=SYSTEM_PROMPT.format(tool=REPL_TOOL, today=_dt.date.today().isoformat()),
             mcp_servers={
                 MCP_SERVER_NAME: {
                     "type": "stdio",
@@ -216,10 +210,15 @@ class BrowsingAgent:
             allowed_tools=[REPL_TOOL],  # auto-approve the aside repl
             permission_mode="dontAsk",  # anything not pre-approved is denied, never prompts
             setting_sources=[],  # don't load ~/.claude settings / CLAUDE.md / user plugins
-            plugins=[{"type": "local", "path": str(PLUGIN_DIR)}],  # our bundled skills
+            # The plugin built by skills.build_plugin (our skills + Aside's).
+            plugins=(
+                [{"type": "local", "path": str(self.config.plugin_dir)}]
+                if self.config.plugin_dir
+                else []
+            ),
             # Only these skills reach the model, and the SDK adds a
             # Skill(<name>) allow rule for each; any other skill is denied.
-            skills=list(SKILLS),
+            skills=list(self.config.skills),
             verbatim_prompts=True,  # no @file expansion / slash commands from chat text
             max_turns=self.config.max_turns,
             resume=resume,
@@ -251,7 +250,10 @@ class BrowsingAgent:
         self._client = client
         logger.info(
             "Agent connected (model={}, effort={}, auth={}, resume={})",
-            self.config.model, self.config.effort, self.auth_mode, resume,
+            self.config.model,
+            self.config.effort,
+            self.auth_mode,
+            resume,
         )
 
     async def close(self) -> None:
@@ -327,7 +329,10 @@ class BrowsingAgent:
                     result.model = next(iter(msg.model_usage))
                 logger.info(
                     "Turn done: subtype={} turns={} {}ms terminal={} cost_usd={}",
-                    msg.subtype, msg.num_turns, msg.duration_ms, reason,
+                    msg.subtype,
+                    msg.num_turns,
+                    msg.duration_ms,
+                    reason,
                     msg.total_cost_usd,
                 )
         if not result.text:

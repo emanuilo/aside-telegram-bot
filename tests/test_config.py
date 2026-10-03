@@ -1,6 +1,13 @@
+from pathlib import Path
+
 import pytest
 
-from aside_telegram.config import ConfigError, load_settings, parse_allowed_user_ids
+from aside_telegram.config import (
+    DEFAULT_ASIDE_SKILLS_DIR,
+    ConfigError,
+    load_settings,
+    parse_allowed_user_ids,
+)
 
 
 @pytest.mark.parametrize(
@@ -27,7 +34,16 @@ def test_parse_allowed_user_ids_rejects_garbage():
 
 @pytest.fixture
 def clean_env(monkeypatch, tmp_path):
-    for k in ("TELEGRAM_BOT_TOKEN", "ALLOWED_USER_IDS", "CLAUDE_CODE_OAUTH_TOKEN", "ASIDE_COMMAND"):
+    for k in (
+        "TELEGRAM_BOT_TOKEN",
+        "ALLOWED_USER_IDS",
+        "CLAUDE_CODE_OAUTH_TOKEN",
+        "ASIDE_COMMAND",
+        "ASIDE_SKILLS_DIR",
+        "ASIDE_BOT_MODEL",
+        "ASIDE_BOT_EFFORT",
+        "STATE_FILE",
+    ):
         monkeypatch.delenv(k, raising=False)
     empty = tmp_path / ".env"
     empty.write_text("")
@@ -56,3 +72,15 @@ def test_load_settings_ok(monkeypatch, clean_env):
     assert s.agent.model == "claude-sonnet-5-5"
     assert s.agent.effort == "medium"
     assert s.agent.oauth_token is None
+    assert s.agent.aside_skills_dir == DEFAULT_ASIDE_SKILLS_DIR
+    assert s.state_file == Path(".state/sessions.json")
+
+
+def test_load_settings_paths_from_env(monkeypatch, clean_env):
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "123:abc")
+    monkeypatch.setenv("ALLOWED_USER_IDS", "1")
+    monkeypatch.setenv("ASIDE_SKILLS_DIR", "~/aside-skills")
+    monkeypatch.setenv("STATE_FILE", "/var/lib/bot/sessions.json")
+    s = load_settings(clean_env)
+    assert s.agent.aside_skills_dir == Path.home() / "aside-skills"
+    assert s.state_file == Path("/var/lib/bot/sessions.json")

@@ -81,9 +81,9 @@ td:first-child { font-weight: 600; white-space: nowrap; }
   </header>
 
   <dl class="facts">
-    <div><dt>Model</dt><dd>claude-sonnet-5-5 · effort medium</dd></div>
+    <div><dt>Model</dt><dd>claude-sonnet-5-5 · effort medium by default, switchable with /model and /effort</dd></div>
     <div><dt>Billing</dt><dd>Claude subscription via CLAUDE_CODE_OAUTH_TOKEN</dd></div>
-    <div><dt>Agent tools</dt><dd>mcp__aside__repl + Skill (1Password only)</dd></div>
+    <div><dt>Agent tools</dt><dd>mcp__aside__repl + Skill (sign-in, 1Password)</dd></div>
     <div><dt>Who can use it</dt><dd>User IDs in ALLOWED_USER_IDS</dd></div>
   </dl>
 
@@ -147,8 +147,8 @@ td:first-child { font-weight: 600; white-space: nowrap; }
 
           <!-- sessions.json -->
           <rect class="box" x="380" y="460" width="250" height="52" rx="6"/>
-          <text class="t" x="394" y="481">.state/sessions.json</text>
-          <text class="s" x="394" y="498">chat id → Claude session id</text>
+          <text class="t" x="394" y="481">.state/</text>
+          <text class="s" x="394" y="498">sessions · settings · model cache · plugin</text>
           <line class="edge" x1="505" y1="420" x2="505" y2="458" marker-end="url(#a)"/>
           <text class="lbl" x="513" y="444">save · resume</text>
 
@@ -158,7 +158,7 @@ td:first-child { font-weight: 600; white-space: nowrap; }
           <text class="s" x="734" y="180">bundled with the SDK, 1 per chat</text>
           <text class="m" x="734" y="198">--permission-mode dontAsk</text>
           <text class="m" x="734" y="212">--setting-sources= (none)</text>
-          <text class="m" x="734" y="226">--plugin-dir (1password skill)</text>
+          <text class="m" x="734" y="226">--plugin-dir .state/plugin</text>
 
           <rect class="box" x="720" y="262" width="230" height="60" rx="8"/>
           <text class="t" x="734" y="285">aside mcp</text>
@@ -181,7 +181,7 @@ td:first-child { font-weight: 600; white-space: nowrap; }
           <!-- CLI <-> Anthropic -->
           <line class="edge cl" x1="835" y1="138" x2="835" y2="76" marker-start="url(#a)" marker-end="url(#a)"/>
           <text class="lbl tcl" x="845" y="92">HTTPS · OAuth token</text>
-          <text class="s" x="845" y="126">Sonnet 5.5 runs there</text>
+          <text class="s" x="845" y="126">the model runs there</text>
 
           <!-- CLI -> aside -->
           <line class="edge" x1="835" y1="234" x2="835" y2="260" marker-end="url(#a)"/>
@@ -219,7 +219,7 @@ td:first-child { font-weight: 600; white-space: nowrap; }
             <text class="m" x="490" y="51" text-anchor="middle">agent.py</text>
             <rect class="box" x="615" y="16" width="150" height="44" rx="6" style="stroke:var(--claude)"/>
             <text class="t" x="690" y="36" text-anchor="middle">Claude</text>
-            <text class="m" x="690" y="51" text-anchor="middle">CLI + Sonnet 5.5</text>
+            <text class="m" x="690" y="51" text-anchor="middle">CLI + model</text>
             <rect class="box" x="815" y="16" width="130" height="44" rx="6"/>
             <text class="t" x="880" y="36" text-anchor="middle">Aside</text>
             <text class="m" x="880" y="51" text-anchor="middle">mcp + browser</text>
@@ -383,8 +383,9 @@ td:first-child { font-weight: 600; white-space: nowrap; }
           <tr><td>Follow-up message</td><td>Same process</td><td>Unchanged</td><td>Everything so far</td></tr>
           <tr><td>/stop</td><td>Turn interrupted, process kept</td><td>Unchanged</td><td>Everything, including the partial turn</td></tr>
           <tr><td>/new</td><td>Closed</td><td>Entry removed</td><td>Nothing. The old transcript stays on disk</td></tr>
+          <tr><td>/model or /effort</td><td>Restarted with <code>--resume</code> before the next message</td><td>Unchanged</td><td>Everything</td></tr>
           <tr><td>Bot restart</td><td>Restarted with <code>--resume</code></td><td>Read back</td><td>Everything, from the transcript</td></tr>
-          <tr><td>Instructions changed</td><td>Started fresh, you get a note</td><td>Old entry dropped</td><td>Nothing. Claude Code would keep the old system prompt on resume</td></tr>
+          <tr><td>Instructions or skills changed</td><td>Started fresh, you get a note</td><td>Old entry dropped</td><td>Nothing. Claude Code would keep the old system prompt on resume</td></tr>
           <tr><td>Agent error</td><td>Closed, resumed next message</td><td>Kept</td><td>Everything up to the error</td></tr>
           <tr><td>Very long chat</td><td>Auto-compacts older turns</td><td>Unchanged</td><td>A summary of older turns, recent ones in full</td></tr>
         </tbody>
@@ -400,6 +401,8 @@ td:first-child { font-weight: 600; white-space: nowrap; }
       <div><h3>Message while busy</h3><p>You get “Queued”. It runs after the current turn, in order, unless /stop or /new comes first.</p></div>
       <div><h3>Bot restart</h3><p>Messages sent while it was down are skipped. Conversations resume from <code>sessions.json</code>; a failed resume starts fresh.</p></div>
       <div><h3>Agent crash</h3><p>You get the error text. The CLI is closed and respawned on your next message, resuming the same session.</p></div>
+      <div><h3>/model and /effort</h3><p>The choice is bot-wide and saved in <code>.state/settings.json</code>; the model list comes from Anthropic's <code>/v1/models</code>, cached in <code>.state/models_cache.json</code>. It applies from your next message, resuming the same session.</p></div>
+      <div><h3>Skills</h3><p>Rebuilt at every start in <code>.state/plugin/</code>: the bot's own sign-in skill plus Aside's 1password skill copied from your Aside install. A missing Aside skill is skipped with a warning.</p></div>
       <div><h3>Irreversible actions</h3><p>The system prompt makes the agent ask you in chat before buying, sending, submitting, deleting or changing settings. It may sign in with 1Password autofill when a task needs it, but never types secrets from chat.</p></div>
     </div>
   </section>

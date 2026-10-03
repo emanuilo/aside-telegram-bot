@@ -18,7 +18,7 @@ def test_legacy_string_entries_are_stale(tmp_path):
     path.write_text(json.dumps({"1": "old-session"}))
     store = SessionStore(path)
     assert store.has(1)
-    assert store.get(1, instructions_fingerprint()) is None
+    assert store.get(1, instructions_fingerprint(None)) is None
 
 
 def test_clear_removes_entry(tmp_path):
@@ -29,7 +29,7 @@ def test_clear_removes_entry(tmp_path):
     assert json.loads((tmp_path / "s.json").read_text()) == {}
 
 
-def test_fingerprint_is_stable_and_ignores_date():
+def test_fingerprint_is_stable_and_ignores_date(plugin):
     # The prompt template (not the formatted prompt with today's date) is
     # hashed, so sessions aren't dropped every midnight.
-    assert instructions_fingerprint() == instructions_fingerprint()
+    assert instructions_fingerprint(plugin) == instructions_fingerprint(plugin)

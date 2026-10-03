@@ -10,6 +10,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 DEFAULT_ASIDE_COMMAND = shutil.which("aside") or str(Path.home() / ".local/bin/aside")
+# Where Aside keeps its builtin skills (profile 0); see skills.py.
+DEFAULT_ASIDE_SKILLS_DIR = Path.home() / ".aside" / "u" / "0" / "skills" / "builtin"
 DEFAULT_MODEL = "claude-sonnet-5-5"
 DEFAULT_EFFORT = "medium"
 
@@ -49,6 +51,11 @@ class AgentConfig:
     oauth_token: str | None = None
     max_turns: int | None = 60
     cwd: Path | None = None
+    # Source of Aside's builtin skills, copied into the plugin at startup.
+    aside_skills_dir: Path | None = DEFAULT_ASIDE_SKILLS_DIR
+    # The built plugin (see skills.build_plugin) and its allowlisted skills.
+    plugin_dir: Path | None = None
+    skills: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -59,6 +66,11 @@ class Settings:
     state_file: Path = Path(".state/sessions.json")
 
 
+def _path_env(name: str, default: Path) -> Path:
+    value = (os.environ.get(name) or "").strip()
+    return Path(value).expanduser() if value else default
+
+
 def load_agent_config(env_file: str | os.PathLike | None = None) -> AgentConfig:
     load_dotenv(env_file, override=False)
     return AgentConfig(
@@ -66,6 +78,7 @@ def load_agent_config(env_file: str | os.PathLike | None = None) -> AgentConfig:
         model=os.environ.get("ASIDE_BOT_MODEL") or DEFAULT_MODEL,
         effort=os.environ.get("ASIDE_BOT_EFFORT") or DEFAULT_EFFORT,
         oauth_token=(os.environ.get("CLAUDE_CODE_OAUTH_TOKEN") or "").strip() or None,
+        aside_skills_dir=_path_env("ASIDE_SKILLS_DIR", DEFAULT_ASIDE_SKILLS_DIR),
     )
 
 

@@ -39,7 +39,9 @@ def test_code_fence_closed_and_reopened():
 
 
 def test_html_escapes_and_formats():
-    out = markdown_to_telegram_html("**Bold** & _it_ <tag> `a<b` [Ex](https://example.com/?a=1&b=2)")
+    out = markdown_to_telegram_html(
+        "**Bold** & _it_ <tag> `a<b` [Ex](https://example.com/?a=1&b=2)"
+    )
     assert "<b>Bold</b>" in out
     assert "&amp;" in out and "&lt;tag&gt;" in out
     assert "<i>it</i>" in out

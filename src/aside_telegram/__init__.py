@@ -29,19 +29,24 @@ def main() -> None:
     # into settings and is re-injected explicitly for the CLI subprocess).
     removed = scrub_process_env()
     if "ANTHROPIC_API_KEY" in removed:
-        logger.warning("Ignoring ANTHROPIC_API_KEY from the environment: billing must use the subscription")
+        logger.warning(
+            "Ignoring ANTHROPIC_API_KEY from the environment: billing must use the subscription"
+        )
     if settings.agent.oauth_token:
         logger.info("Claude auth: subscription via CLAUDE_CODE_OAUTH_TOKEN ({})", AUTH_MODE_OAUTH)
     else:
         logger.warning(
             "Claude auth: CLAUDE_CODE_OAUTH_TOKEN not set; falling back to the local "
-            "Claude Code login (still subscription). Run `claude setup-token` for a long-lived token."
+            "Claude Code login (still subscription). "
+            "Run `claude setup-token` for a long-lived token."
         )
     if os.environ.get("ANTHROPIC_BASE_URL"):
         logger.warning("ANTHROPIC_BASE_URL is set; the Claude CLI will use it")
     logger.info(
         "Starting aside-telegram (default model={}, default effort={}, aside={}, allowed users={})",
-        settings.agent.model, settings.agent.effort, settings.agent.aside_command,
+        settings.agent.model,
+        settings.agent.effort,
+        settings.agent.aside_command,
         sorted(settings.allowed_user_ids),
     )
 

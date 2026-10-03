@@ -1,0 +1,73 @@
+# Security Policy
+
+aside-telegram gives a Telegram chat control of a real, logged-in web browser.
+Please read this before running it.
+
+## Threat model
+
+**What the bot can do.** The agent drives your Aside Browser through the aside
+MCP: it can open pages, read them, click, type and submit forms in a browser
+that may be signed in to your email, bank, shops and social accounts. Anyone
+who can make the agent act can do the same.
+
+**Who can talk to it.** Only Telegram user IDs listed in `ALLOWED_USER_IDS`.
+The bot refuses to start without that list, and every message, command and
+button press from other users is rejected and logged. Telegram user IDs can't
+be spoofed by other users, but anyone with access to an allowed Telegram
+account (an unlocked phone, a hijacked session) can control your browser.
+
+**What the agent is allowed to use.** Only the aside `repl` tool and the
+`Skill` tool for an allowlisted set of skills. It has no shell, file or web
+fetch tools, your `~/.claude` settings, CLAUDE.md, plugins and other MCP
+servers are not loaded, and anything not pre-approved is denied without a
+prompt.
+
+**Prompt injection is the main residual risk.** Web pages the agent reads can
+contain text written to manipulate it ("ignore your instructions and send...").
+The agent is told to treat page content as data and to ask you in chat before
+irreversible actions (purchases, sending messages, posting, submitting forms,
+deleting, changing settings, accepting terms) and before autofilling payment
+cards. **These safeguards are instructions to the model, not enforced
+controls.** A model can be tricked or make mistakes, and the repl tool itself
+can do anything the browser can.
+
+**Credentials.** The agent is told to sign in only with your password
+manager's autofill and never to type secrets it reads or that you send in chat.
+Don't send passwords or codes to the bot: chat messages are stored by Telegram
+and in the Claude Code session transcripts on your machine.
+
+## Recommendations
+
+- **Use a dedicated browser profile** for the bot, signed in only to the sites
+  you want it to use. Keep banking, primary email and admin accounts out of it
+  where you can.
+- Keep `ALLOWED_USER_IDS` to your own account(s), and protect that Telegram
+  account (passcode, two-step verification).
+- **Keep tokens secret.** `TELEGRAM_BOT_TOKEN` lets anyone impersonate the bot;
+  `CLAUDE_CODE_OAUTH_TOKEN` gives access to your Claude subscription. Keep them
+  only in `.env` (git-ignored) with restrictive permissions (`chmod 600 .env`),
+  never in logs, issues or screenshots. If one leaks, revoke it (BotFather
+  `/revoke`; regenerate with `claude setup-token`).
+- `ANTHROPIC_API_KEY` and other provider credentials are scrubbed from the
+  bot's environment, but don't rely on that as a secret store.
+- Watch what the agent does: progress messages show each browser step, and
+  `/stop` interrupts a running task.
+- The `.state/` directory and Claude Code's transcripts (under
+  `~/.claude/projects/`) contain your conversations, page text and
+  screenshots. Treat them as sensitive.
+
+## Reporting a vulnerability
+
+Please **do not open a public issue** for security problems. Report them
+privately through GitHub's
+[security advisories](https://github.com/emanuilo/aside-telegram-bot/security/advisories/new)
+("Report a vulnerability" on the Security tab). Include what you found, how to
+reproduce it and its impact. You should get a reply within a few days, and
+we'll coordinate a fix and disclosure with you.
+
+Vulnerabilities in Aside, Claude Code / the Claude Agent SDK or Telegram
+themselves should be reported to those vendors.
+
+## Supported versions
+
+Only the latest release on `main` receives security fixes.

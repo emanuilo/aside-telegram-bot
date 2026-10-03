@@ -1,10 +1,25 @@
+# Secrets
 .env
+.env.*
+!.env.example
+
+# Runtime state (sessions, settings, model cache, built plugin)
+.state/
+
+# Python
 .venv/
 __pycache__/
 *.py[cod]
 .pytest_cache/
-.state/
+.ruff_cache/
 dist/
 build/
 *.egg-info/
+
+# Logs
+*.log
+
+# OS / editors
 .DS_Store
+.idea/
+.vscode/

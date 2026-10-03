@@ -99,7 +99,8 @@ def effort_levels(capabilities: dict[str, Any]) -> list[str]:
     if not isinstance(effort, dict) or not effort.get("supported"):
         return []
     return [
-        level for level in SDK_EFFORT_LEVELS
+        level
+        for level in SDK_EFFORT_LEVELS
         if isinstance(effort.get(level), dict) and effort[level].get("supported")
     ]
 
@@ -128,7 +129,9 @@ def parse_models(entries: list[dict[str, Any]]) -> list[ModelInfo]:
     return models
 
 
-async def fetch_models(oauth_token: str, client: httpx.AsyncClient | None = None) -> list[ModelInfo]:
+async def fetch_models(
+    oauth_token: str, client: httpx.AsyncClient | None = None
+) -> list[ModelInfo]:
     """Fetch every model page from /v1/models. Raises on any failure."""
     own = client is None
     client = client or httpx.AsyncClient(timeout=REQUEST_TIMEOUT, follow_redirects=False)
@@ -136,7 +139,9 @@ async def fetch_models(oauth_token: str, client: httpx.AsyncClient | None = None
     params: dict[str, Any] = {"limit": PAGE_LIMIT}
     try:
         for _ in range(MAX_PAGES):
-            response = await client.get(MODELS_URL, headers=build_headers(oauth_token), params=params)
+            response = await client.get(
+                MODELS_URL, headers=build_headers(oauth_token), params=params
+            )
             response.raise_for_status()
             payload = response.json()
             entries.extend(payload.get("data") or [])

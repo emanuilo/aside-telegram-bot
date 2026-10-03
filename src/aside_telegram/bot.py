@@ -37,6 +37,7 @@ from .agent import BrowsingAgent, Image, ToolStep, TurnResult, instructions_fing
 from .config import Settings
 from .formatting import SAFE_CHUNK_LEN, TELEGRAM_MAX_LEN, markdown_to_telegram_html, split_message
 from .models import SDK_EFFORT_LEVELS, ModelCatalog, ModelInfo, resolve_effort
+from .skills import build_plugin
 
 MAX_PHOTOS_PER_TURN = 5
 STATUS_EDIT_INTERVAL_S = 2.0
@@ -45,7 +46,7 @@ _NO_PREVIEW = LinkPreviewOptions(is_disabled=True)
 
 HELP_TEXT = (
     "I'm a browsing assistant driving your Aside browser.\n\n"
-    "Just tell me what to do, e.g. \"open example.com and tell me the heading\".\n\n"
+    'Just tell me what to do, e.g. "open example.com and tell me the heading".\n\n'
     "/new - start a fresh conversation\n"
     "/stop - interrupt the current task (and drop queued messages)\n"
     "/model - show or change the Claude model\n"
@@ -178,13 +179,19 @@ class AsideBot:
         self.state_dir = settings.state_file.parent.resolve()
         self.sessions = SessionStore(settings.state_file)
         self.chats: dict[int, ChatState] = {}
+        # Our skills + Aside's builtin ones from the local install, rebuilt
+        # on every start so an Aside update is picked up.
+        self.plugin = build_plugin(self.state_dir / "plugin", settings.agent.aside_skills_dir)
+        logger.info("Skills: {} (plugin {})", ", ".join(self.plugin.skills), self.plugin.path)
         # Model/effort are deliberately not part of the fingerprint: a session
         # resumes fine under a different --model/--effort.
-        self.fingerprint = instructions_fingerprint()
+        self.fingerprint = instructions_fingerprint(self.plugin)
         self.prefs = PreferenceStore(
             self.state_dir / "settings.json", settings.agent.model, settings.agent.effort
         )
-        self.catalog = ModelCatalog(settings.agent.oauth_token, self.state_dir / "models_cache.json")
+        self.catalog = ModelCatalog(
+            settings.agent.oauth_token, self.state_dir / "models_cache.json"
+        )
         self._bg_tasks: set[asyncio.Task] = set()
 
     def _chat(self, chat_id: int) -> ChatState:
@@ -206,6 +213,8 @@ class AsideBot:
             model=self.prefs.model,
             effort=self._effective_effort(),
             cwd=self.state_dir,
+            plugin_dir=self.plugin.path,
+            skills=self.plugin.skills,
         )
 
     def _agent_is_current(self, agent: BrowsingAgent) -> bool:
@@ -260,10 +269,12 @@ class AsideBot:
         if not self.catalog.models:
             return None
         rows = [
-            [InlineKeyboardButton(
-                ("✓ " if m.id == self.prefs.model else "") + m.display_name,
-                callback_data=model_callback_data(i, m.id),
-            )]
+            [
+                InlineKeyboardButton(
+                    ("✓ " if m.id == self.prefs.model else "") + m.display_name,
+                    callback_data=model_callback_data(i, m.id),
+                )
+            ]
             for i, m in enumerate(self.catalog.models)
         ]
         return InlineKeyboardMarkup(rows)
@@ -291,14 +302,23 @@ class AsideBot:
         if not levels:
             return None
         current = self._effective_effort()
-        return InlineKeyboardMarkup([[
-            InlineKeyboardButton(("✓ " if lv == current else "") + lv, callback_data=f"e:{lv}")
-            for lv in levels
-        ]])
+        return InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton(
+                        ("✓ " if lv == current else "") + lv, callback_data=f"e:{lv}"
+                    )
+                    for lv in levels
+                ]
+            ]
+        )
 
     def _applies_note(self, busy: bool) -> str:
         if busy:
-            return "A task is running; it finishes with the old setting and the change applies to your next message."
+            return (
+                "A task is running; it finishes with the old setting and the change "
+                "applies to your next message."
+            )
         return "Applies from your next message; the conversation is kept."
 
     async def _select_model(self, model_id: str, chat_id: int | None) -> str:
@@ -317,7 +337,9 @@ class AsideBot:
         if info is not None and not info.effort_levels and self.prefs.effort:
             notes.append(f"{name} doesn't support effort, so it will be omitted.")
         elif self.prefs.effort and effective != self.prefs.effort:
-            notes.append(f"{name} doesn't support '{self.prefs.effort}' effort; using '{effective}'.")
+            notes.append(
+                f"{name} doesn't support '{self.prefs.effort}' effort; using '{effective}'."
+            )
         if model_id != old:
             notes.append(self._applies_note(self._is_busy(chat_id)))
         return " ".join(notes)
@@ -331,7 +353,10 @@ class AsideBot:
         if levels == []:
             return False, "The current model doesn't support an effort setting."
         if levels is not None and level not in levels:
-            return False, f"The current model doesn't support '{level}'. Supported: {', '.join(levels)}."
+            return (
+                False,
+                f"The current model doesn't support '{level}'. Supported: {', '.join(levels)}.",
+            )
         before = self._effective_effort()
         self.prefs.update(effort=level)
         if before == level:
@@ -385,7 +410,9 @@ class AsideBot:
         task = asyncio.create_task(self.catalog.refresh())
         self._bg_tasks.add(task)
         task.add_done_callback(self._bg_tasks.discard)
-        logger.info("Model={} effort={} (state {})", self.prefs.model, self.prefs.effort, self.state_dir)
+        logger.info(
+            "Model={} effort={} (state {})", self.prefs.model, self.prefs.effort, self.state_dir
+        )
 
     async def _post_shutdown(self, app: Application) -> None:
         for state in self.chats.values():
@@ -437,7 +464,9 @@ class AsideBot:
             elif not self.catalog.models and _MODEL_ID_RE.match(arg):
                 note = await self._select_model(arg, chat_id)
             else:
-                await msg.reply_text(f"Unknown model '{arg}'. Send /model to see the available models.")
+                await msg.reply_text(
+                    f"Unknown model '{arg}'. Send /model to see the available models."
+                )
                 return
         await msg.reply_text(self._model_text(note), reply_markup=self._model_keyboard())
 
@@ -462,7 +491,8 @@ class AsideBot:
         if user is None or user.id not in self.settings.allowed_user_ids:
             logger.warning(
                 "Rejected button press from user id={} username={}",
-                user.id if user else None, user.username if user else None,
+                user.id if user else None,
+                user.username if user else None,
             )
             with contextlib.suppress(TelegramError):
                 await query.answer("You're not allowed to use this bot.")
@@ -503,11 +533,17 @@ class AsideBot:
         if user is None or user.id not in self.settings.allowed_user_ids:
             logger.warning(
                 "Rejected update from user id={} username={}",
-                user.id if user else None, user.username if user else None,
+                user.id if user else None,
+                user.username if user else None,
             )
-            if msg is not None and update.effective_chat and update.effective_chat.type == "private":
+            if (
+                msg is not None
+                and update.effective_chat
+                and update.effective_chat.type == "private"
+            ):
+                user_id = user.id if user else "?"
                 await msg.reply_text(
-                    f"Sorry, you're not allowed to use this bot. (Your user id: {user.id if user else '?'})"
+                    f"Sorry, you're not allowed to use this bot. (Your user id: {user_id})"
                 )
             return
         if msg is not None:
@@ -601,18 +637,24 @@ class AsideBot:
         for image in result.images[-MAX_PHOTOS_PER_TURN:]:
             await self._send_image(bot, chat_id, image)
 
-    async def _send_text(self, bot, chat_id: int, text: str, reply_to: Message | None = None) -> None:
+    async def _send_text(
+        self, bot, chat_id: int, text: str, reply_to: Message | None = None
+    ) -> None:
         for i, chunk in enumerate(split_message(text, SAFE_CHUNK_LEN)):
             reply = (
                 ReplyParameters(reply_to.message_id, allow_sending_without_reply=True)
-                if (reply_to is not None and i == 0) else None
+                if (reply_to is not None and i == 0)
+                else None
             )
             html_text = markdown_to_telegram_html(chunk)
             if len(html_text) <= TELEGRAM_MAX_LEN:
                 try:
                     await bot.send_message(
-                        chat_id, html_text, parse_mode=ParseMode.HTML,
-                        reply_parameters=reply, link_preview_options=_NO_PREVIEW,
+                        chat_id,
+                        html_text,
+                        parse_mode=ParseMode.HTML,
+                        reply_parameters=reply,
+                        link_preview_options=_NO_PREVIEW,
                     )
                     continue
                 except BadRequest as exc:
@@ -629,7 +671,9 @@ class AsideBot:
             # Too large / odd dimensions for a photo: fall back to a document.
             logger.debug("send_photo failed ({}); sending as document", exc)
             with contextlib.suppress(TelegramError):
-                await bot.send_document(chat_id, io.BytesIO(image.data), filename=f"screenshot.{ext}")
+                await bot.send_document(
+                    chat_id, io.BytesIO(image.data), filename=f"screenshot.{ext}"
+                )
 
     @staticmethod
     async def _keep_typing(bot, chat_id: int) -> None:

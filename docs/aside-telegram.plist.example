@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Example launchd LaunchAgent for aside-telegram.
+
+  1. Replace every /path/to/aside-telegram-bot with the absolute path of your
+     checkout (after `uv sync`), and YOUR_USER with your macOS user name.
+  2. Copy to ~/Library/LaunchAgents/local.aside-telegram.plist
+  3. launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/local.aside-telegram.plist
+
+  It runs in your login session, where the Aside Browser runs. Configuration
+  is read from .env in WorkingDirectory. launchd's PATH is minimal: if `aside`
+  isn't found, set ASIDE_COMMAND in .env to its absolute path.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>local.aside-telegram</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/path/to/aside-telegram-bot/.venv/bin/aside-telegram</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/path/to/aside-telegram-bot</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <!-- Restart whenever it exits with an error (crash, config error), at most every 30 s. -->
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+
+  <key>StandardOutPath</key>
+  <string>/Users/YOUR_USER/Library/Logs/aside-telegram.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/YOUR_USER/Library/Logs/aside-telegram.log</string>
+</dict>
+</plist>

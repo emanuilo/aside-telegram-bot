@@ -1,12 +1,39 @@
 [project]
 name = "aside-telegram"
 version = "0.1.0"
-description = "Telegram bot wrapping a Claude Agent SDK agent with the Aside browser MCP"
+description = "A Telegram bot that drives your Aside Browser with a Claude Agent SDK browsing agent"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [
-    { name = "Emanuilo Jovanovic", email = "emanuilo.jovanovic@hotmail.com" }
+    { name = "Emanuilo Jovanovic", email = "emanuilo.jovanovic@hotmail.com" },
 ]
 requires-python = ">=3.10"
+keywords = [
+    "telegram",
+    "telegram-bot",
+    "claude",
+    "claude-agent-sdk",
+    "browser-automation",
+    "aside",
+    "mcp",
+    "ai-agent",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Communications :: Chat",
+    "Topic :: Internet :: WWW/HTTP :: Browsers",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = [
     "claude-agent-sdk>=0.2.163",
     "httpx>=0.28.1",
@@ -14,6 +41,11 @@ dependencies = [
     "python-dotenv>=1.2.4",
     "python-telegram-bot>=21",
 ]
+
+[project.urls]
+Repository = "https://github.com/emanuilo/aside-telegram-bot"
+Issues = "https://github.com/emanuilo/aside-telegram-bot/issues"
+Changelog = "https://github.com/emanuilo/aside-telegram-bot/blob/main/CHANGELOG.md"
 
 [project.scripts]
 aside-telegram = "aside_telegram:main"
@@ -25,7 +57,33 @@ build-backend = "uv_build"
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
+    "ruff>=0.16.10",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "BLE", # blind except (deliberate ones are marked noqa)
+    "UP",  # pyupgrade
+    "SIM", # flake8-simplify
+    "RUF", # ruff-specific
+]
+ignore = [
+    "RUF001", # ambiguous unicode in strings: "…" and "✓" are intentional UI text
+    "RUF003", # ambiguous unicode in comments: box-drawing section rules
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["aside_telegram"]

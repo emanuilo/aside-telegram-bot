@@ -20,8 +20,15 @@ from aside_telegram.models import ModelInfo
 ALLOWED, STRANGER, CHAT = 1, 2, 100
 
 MODELS = [
-    ModelInfo("claude-sonnet-5-5", "Claude Sonnet 5.5", "2026-09-28", ["low", "medium", "high", "xhigh", "max"]),
-    ModelInfo("claude-opus-4-5-20251101", "Claude Opus 4.5", "2025-11-24", ["low", "medium", "high"]),
+    ModelInfo(
+        "claude-sonnet-5-5",
+        "Claude Sonnet 5.5",
+        "2026-09-28",
+        ["low", "medium", "high", "xhigh", "max"],
+    ),
+    ModelInfo(
+        "claude-opus-4-5-20251101", "Claude Opus 4.5", "2025-11-24", ["low", "medium", "high"]
+    ),
     ModelInfo("claude-haiku-4-5-20251001", "Claude Haiku 4.5", "2025-10-15", []),
 ]
 
@@ -89,11 +96,13 @@ def _ctx(*args):
 
 
 @pytest.fixture
-def bot(tmp_path):
+def bot(tmp_path, aside_skills_dir):
     settings = Settings(
         telegram_bot_token="x",
         allowed_user_ids=frozenset({ALLOWED}),
-        agent=AgentConfig(oauth_token=None, aside_command="/bin/aside"),  # no token: no network
+        agent=AgentConfig(  # no token: no network
+            oauth_token=None, aside_command="/bin/aside", aside_skills_dir=aside_skills_dir
+        ),
         state_file=tmp_path / "sessions.json",
     )
     b = AsideBot(settings)
@@ -132,7 +141,9 @@ def test_button_tap_by_allowed_user_switches_and_persists(bot, tmp_path):
     saved = json.loads((tmp_path / "settings.json").read_text())
     assert saved == {"model": "claude-opus-4-5-20251101", "effort": "medium"}
     # Survives a restart.
-    assert PreferenceStore(tmp_path / "settings.json", "d", "low").model == "claude-opus-4-5-20251101"
+    assert (
+        PreferenceStore(tmp_path / "settings.json", "d", "low").model == "claude-opus-4-5-20251101"
+    )
 
 
 def test_button_tap_by_stranger_is_rejected(bot, tmp_path):
@@ -334,7 +345,7 @@ def test_callback_data_fits_telegram_limit(bot):
     long_id = "claude-" + "x" * 80
     assert model_callback_data(3, long_id) == "mi:3"
     assert model_callback_data(0, "claude-opus-5") == "m:claude-opus-5"
-    bot.catalog.models = MODELS + [ModelInfo(long_id, "Long", "", ["low"])]
+    bot.catalog.models = [*MODELS, ModelInfo(long_id, "Long", "", ["low"])]
     upd = _update()
     run(bot.cmd_model(upd, _ctx()))
     for btn in _buttons(upd.effective_message.replies[-1][1]):
@@ -363,3 +374,14 @@ def test_command_menu_and_help():
 
     assert [c.command for c in BOT_COMMANDS] == ["start", "new", "stop", "model", "effort"]
     assert "/model" in HELP_TEXT and "/effort" in HELP_TEXT
+
+
+def test_bot_builds_plugin_in_state_dir(bot, tmp_path):
+    assert bot.plugin.path == (tmp_path / "plugin").resolve()
+    cfg = bot._agent_config()
+    assert cfg.plugin_dir == bot.plugin.path
+    assert cfg.skills == ("aside-telegram:sign-in", "aside-telegram:1password")
+    assert (
+        "Skill(aside-telegram:1password)"
+        in _cli_cmd(cfg)[_cli_cmd(cfg).index("--allowedTools") + 1]
+    )
