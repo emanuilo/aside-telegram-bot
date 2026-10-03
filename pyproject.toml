@@ -51,7 +51,7 @@ Changelog = "https://github.com/emanuilo/aside-telegram-bot/blob/main/CHANGELOG.
 aside-telegram = "aside_telegram:main"
 
 [build-system]
-requires = ["uv_build>=0.8.19,<0.9.0"]
+requires = ["uv_build>=0.8.19,<0.13.0"]
 build-backend = "uv_build"
 
 [dependency-groups]
