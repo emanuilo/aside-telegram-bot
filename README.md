@@ -9,9 +9,13 @@ Aside MCP `repl`, which drives your real Aside Browser.
   or your local Claude Code login). `ANTHROPIC_API_KEY` is always scrubbed.
 - Only allowlisted Telegram user IDs can talk to it; it refuses to start
   without an allowlist.
-- The agent has no shell or file tools, just `mcp__aside__repl`. It's told to
-  ask you before anything irreversible (purchases, sending messages, submitting
-  forms, deleting).
+- The agent has no shell or file tools, just `mcp__aside__repl` plus the
+  `Skill` tool for the skills bundled here (currently only 1Password). It's told
+  to ask you before anything irreversible (purchases, sending messages,
+  submitting forms, deleting).
+- It may sign in to sites with the 1Password extension's autofill in the Aside
+  Browser when a task needs a login. It never types secrets from chat and asks
+  before autofilling payment cards.
 
 ## Setup
 
@@ -75,8 +79,33 @@ src/aside_telegram/
   config.py      # .env loading and validation
   formatting.py  # 4096-char splitting, Markdown -> Telegram HTML
   bot.py         # Telegram handlers, per-chat locks, progress, photos
+  plugin/        # Local Claude Code plugin carrying the agent's skills
+    .claude-plugin/plugin.json
+    skills/1password/SKILL.md
 tests/           # pytest suite for the pure helpers
 ```
+
+## Skills
+
+The agent loads skills only from the bundled plugin in
+`src/aside_telegram/plugin/` (passed to the CLI with `--plugin-dir`).
+`setting_sources=[]` keeps your `~/.claude` settings, CLAUDE.md and personal
+skills/plugins out, and `skills=["aside-telegram:1password"]` is the allowlist
+of what the model sees and may invoke.
+
+`skills/1password/SKILL.md` is a copy of Aside's builtin skill with two changes:
+its `description` is rewritten so the agent reaches for it on any sign-in task,
+not only when you say "1Password", and step 1 of the autofill flow says how to
+click a menu item (`page.click('<ref>')`). To refresh it after an Aside update,
+copy it and then restore those two edits:
+
+```sh
+cp ~/.aside/u/0/skills/builtin/1password/SKILL.md src/aside_telegram/plugin/skills/1password/
+```
+
+To add another Aside skill, copy its folder from `~/.aside/u/0/skills/builtin/`
+into `src/aside_telegram/plugin/skills/` and add `aside-telegram:<name>` to
+`SKILLS` in `agent.py`.
 
 ## Development
 

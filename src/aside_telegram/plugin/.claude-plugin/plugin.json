@@ -1,0 +1,5 @@
+{
+  "name": "aside-telegram",
+  "version": "0.1.0",
+  "description": "Skills bundled with the aside-telegram browsing agent (vendored from Aside's builtin skills)."
+}

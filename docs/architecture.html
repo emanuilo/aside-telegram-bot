@@ -83,7 +83,7 @@ td:first-child { font-weight: 600; white-space: nowrap; }
   <dl class="facts">
     <div><dt>Model</dt><dd>claude-sonnet-5-5 · effort medium</dd></div>
     <div><dt>Billing</dt><dd>Claude subscription via CLAUDE_CODE_OAUTH_TOKEN</dd></div>
-    <div><dt>Agent tools</dt><dd>Only mcp__aside__repl</dd></div>
+    <div><dt>Agent tools</dt><dd>mcp__aside__repl + Skill (1Password only)</dd></div>
     <div><dt>Who can use it</dt><dd>User IDs in ALLOWED_USER_IDS</dd></div>
   </dl>
 
@@ -153,11 +153,12 @@ td:first-child { font-weight: 600; white-space: nowrap; }
           <text class="lbl" x="513" y="444">save · resume</text>
 
           <!-- Right column -->
-          <rect class="box" x="720" y="140" width="230" height="80" rx="8" style="stroke:var(--claude)"/>
+          <rect class="box" x="720" y="140" width="230" height="94" rx="8" style="stroke:var(--claude)"/>
           <text class="t" x="734" y="162">Claude Code CLI</text>
           <text class="s" x="734" y="180">bundled with the SDK, 1 per chat</text>
           <text class="m" x="734" y="198">--permission-mode dontAsk</text>
           <text class="m" x="734" y="212">--setting-sources= (none)</text>
+          <text class="m" x="734" y="226">--plugin-dir (1password skill)</text>
 
           <rect class="box" x="720" y="262" width="230" height="60" rx="8"/>
           <text class="t" x="734" y="285">aside mcp</text>
@@ -183,8 +184,8 @@ td:first-child { font-weight: 600; white-space: nowrap; }
           <text class="s" x="845" y="126">Sonnet 5.5 runs there</text>
 
           <!-- CLI -> aside -->
-          <line class="edge" x1="835" y1="220" x2="835" y2="260" marker-end="url(#a)"/>
-          <text class="lbl" x="845" y="244">repl(code)</text>
+          <line class="edge" x1="835" y1="234" x2="835" y2="260" marker-end="url(#a)"/>
+          <text class="lbl" x="845" y="251">repl(code)</text>
           <line class="edge" x1="835" y1="322" x2="835" y2="358" marker-end="url(#a)"/>
           <text class="lbl" x="845" y="344">drives tabs</text>
 
@@ -335,7 +336,7 @@ td:first-child { font-weight: 600; white-space: nowrap; }
           <!-- Disk column -->
           <rect class="box" x="430" y="50" width="280" height="76" rx="8"/>
           <text class="t" x="444" y="72">.state/sessions.json</text>
-          <text class="m" x="444" y="91">{"&lt;chat id&gt;": "&lt;session id&gt;"}</text>
+          <text class="m" x="444" y="91">chat id → session id + fingerprint</text>
           <text class="s" x="444" y="108">updated after every turn</text>
 
           <rect class="box" x="430" y="166" width="280" height="88" rx="8"/>
@@ -383,6 +384,7 @@ td:first-child { font-weight: 600; white-space: nowrap; }
           <tr><td>/stop</td><td>Turn interrupted, process kept</td><td>Unchanged</td><td>Everything, including the partial turn</td></tr>
           <tr><td>/new</td><td>Closed</td><td>Entry removed</td><td>Nothing. The old transcript stays on disk</td></tr>
           <tr><td>Bot restart</td><td>Restarted with <code>--resume</code></td><td>Read back</td><td>Everything, from the transcript</td></tr>
+          <tr><td>Instructions changed</td><td>Started fresh, you get a note</td><td>Old entry dropped</td><td>Nothing. Claude Code would keep the old system prompt on resume</td></tr>
           <tr><td>Agent error</td><td>Closed, resumed next message</td><td>Kept</td><td>Everything up to the error</td></tr>
           <tr><td>Very long chat</td><td>Auto-compacts older turns</td><td>Unchanged</td><td>A summary of older turns, recent ones in full</td></tr>
         </tbody>
@@ -398,7 +400,7 @@ td:first-child { font-weight: 600; white-space: nowrap; }
       <div><h3>Message while busy</h3><p>You get “Queued”. It runs after the current turn, in order, unless /stop or /new comes first.</p></div>
       <div><h3>Bot restart</h3><p>Messages sent while it was down are skipped. Conversations resume from <code>sessions.json</code>; a failed resume starts fresh.</p></div>
       <div><h3>Agent crash</h3><p>You get the error text. The CLI is closed and respawned on your next message, resuming the same session.</p></div>
-      <div><h3>Irreversible actions</h3><p>The system prompt makes the agent ask you in chat before buying, sending, submitting, deleting or changing settings.</p></div>
+      <div><h3>Irreversible actions</h3><p>The system prompt makes the agent ask you in chat before buying, sending, submitting, deleting or changing settings. It may sign in with 1Password autofill when a task needs it, but never types secrets from chat.</p></div>
     </div>
   </section>
 </div>

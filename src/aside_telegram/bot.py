@@ -23,7 +23,7 @@ from telegram.ext import (
     filters,
 )
 
-from .agent import BrowsingAgent, Image, ToolStep, TurnResult
+from .agent import BrowsingAgent, Image, ToolStep, TurnResult, instructions_fingerprint
 from .config import Settings
 from .formatting import SAFE_CHUNK_LEN, TELEGRAM_MAX_LEN, markdown_to_telegram_html, split_message
 
@@ -46,27 +46,44 @@ HELP_TEXT = (
 
 
 class SessionStore:
-    """chat_id -> Claude session_id, persisted so restarts keep context."""
+    """chat_id -> Claude session id, persisted so restarts keep context.
+
+    Each entry also records the fingerprint of the agent instructions the
+    session was started with; Claude Code keeps a session's original system
+    prompt on resume, so entries from other instructions aren't resumed.
+    """
 
     def __init__(self, path: Path) -> None:
         self.path = path
-        self._data: dict[str, str] = {}
+        self._data: dict[str, dict[str, str]] = {}
         try:
-            self._data = json.loads(path.read_text())
+            raw = json.loads(path.read_text())
         except FileNotFoundError:
-            pass
+            raw = {}
         except (OSError, ValueError) as exc:
             logger.warning("Ignoring unreadable session store {}: {}", path, exc)
+            raw = {}
+        for key, value in raw.items():
+            # Legacy entries were bare session ids with no fingerprint.
+            self._data[key] = value if isinstance(value, dict) else {"session_id": value}
 
-    def get(self, chat_id: int) -> str | None:
-        return self._data.get(str(chat_id))
+    def get(self, chat_id: int, fingerprint: str) -> str | None:
+        """The session to resume, or None if there is none or it is stale."""
+        entry = self._data.get(str(chat_id))
+        if entry and entry.get("fingerprint") == fingerprint:
+            return entry.get("session_id")
+        return None
 
-    def set(self, chat_id: int, session_id: str | None) -> None:
+    def has(self, chat_id: int) -> bool:
+        return str(chat_id) in self._data
+
+    def set(self, chat_id: int, session_id: str | None, fingerprint: str = "") -> None:
         key = str(chat_id)
         if session_id:
-            if self._data.get(key) == session_id:
+            entry = {"session_id": session_id, "fingerprint": fingerprint}
+            if self._data.get(key) == entry:
                 return
-            self._data[key] = session_id
+            self._data[key] = entry
         elif self._data.pop(key, None) is None:
             return
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -92,15 +109,23 @@ class AsideBot:
         self.state_dir = settings.state_file.parent.resolve()
         self.sessions = SessionStore(settings.state_file)
         self.chats: dict[int, ChatState] = {}
+        self.fingerprint = instructions_fingerprint()
 
     def _chat(self, chat_id: int) -> ChatState:
         return self.chats.setdefault(chat_id, ChatState())
 
-    def _new_agent(self, chat_id: int) -> BrowsingAgent:
+    def _new_agent(self, chat_id: int) -> tuple[BrowsingAgent, bool]:
+        """Create the chat's agent. The flag is True if a saved session was
+        dropped because the agent's instructions changed since it started."""
         self.state_dir.mkdir(parents=True, exist_ok=True)
         # Fixed cwd so Claude Code stores/resumes sessions in one place.
         cfg = replace(self.settings.agent, cwd=self.state_dir)
-        return BrowsingAgent(cfg, resume=self.sessions.get(chat_id))
+        resume = self.sessions.get(chat_id, self.fingerprint)
+        stale = resume is None and self.sessions.has(chat_id)
+        if stale:
+            logger.info("Instructions changed; not resuming the old session for chat {}", chat_id)
+            self.sessions.set(chat_id, None)
+        return BrowsingAgent(cfg, resume=resume), stale
 
     # -- application -----------------------------------------------------
 
@@ -199,7 +224,11 @@ class AsideBot:
     ) -> None:
         bot = context.bot
         if state.agent is None:
-            state.agent = self._new_agent(chat_id)
+            state.agent, stale = self._new_agent(chat_id)
+            if stale:
+                await self._send_text(
+                    bot, chat_id, "My instructions were updated, so this is a fresh conversation."
+                )
         agent = state.agent
 
         typing = asyncio.create_task(self._keep_typing(bot, chat_id))
@@ -227,7 +256,7 @@ class AsideBot:
             logger.exception("Agent turn failed in chat {}", chat_id)
             # The CLI subprocess may be dead; reconnect (resuming) next time.
             if agent.session_id:
-                self.sessions.set(chat_id, agent.session_id)
+                self.sessions.set(chat_id, agent.session_id, self.fingerprint)
             await agent.close()
             state.agent = None
             await self._send_text(bot, chat_id, f"Sorry, something went wrong: {exc}", reply_to=msg)
@@ -239,7 +268,7 @@ class AsideBot:
                     await status.delete()
 
         if result.session_id:
-            self.sessions.set(chat_id, result.session_id)
+            self.sessions.set(chat_id, result.session_id, self.fingerprint)
         await self._deliver(bot, chat_id, msg, result)
 
     async def _deliver(self, bot, chat_id: int, msg: Message, result: TurnResult) -> None:
