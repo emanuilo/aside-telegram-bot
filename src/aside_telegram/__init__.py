@@ -40,7 +40,7 @@ def main() -> None:
     if os.environ.get("ANTHROPIC_BASE_URL"):
         logger.warning("ANTHROPIC_BASE_URL is set; the Claude CLI will use it")
     logger.info(
-        "Starting aside-telegram (model={}, effort={}, aside={}, allowed users={})",
+        "Starting aside-telegram (default model={}, default effort={}, aside={}, allowed users={})",
         settings.agent.model, settings.agent.effort, settings.agent.aside_command,
         sorted(settings.allowed_user_ids),
     )
@@ -51,7 +51,7 @@ def main() -> None:
 
     app = AsideBot(settings).build_application()
     try:
-        app.run_polling(allowed_updates=["message"], drop_pending_updates=True)
+        app.run_polling(allowed_updates=["message", "callback_query"], drop_pending_updates=True)
     except InvalidToken:
         logger.error("Telegram rejected TELEGRAM_BOT_TOKEN; check the token from @BotFather.")
         raise SystemExit(2) from None

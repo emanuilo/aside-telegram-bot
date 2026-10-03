@@ -2,7 +2,8 @@
 
 A Telegram bot that gives you a browsing agent in your pocket. Each chat is a
 persistent [Claude Agent SDK](https://pypi.org/project/claude-agent-sdk/)
-conversation (Sonnet 5.5, medium effort) whose only tool is the
+conversation (Sonnet 5.5, medium effort by default; switchable with `/model`
+and `/effort`) whose only tool is the
 Aside MCP `repl`, which drives your real Aside Browser.
 
 - Billing goes through your **Claude subscription** (`CLAUDE_CODE_OAUTH_TOKEN`
@@ -64,11 +65,31 @@ step. Screenshots the agent `display()`s are forwarded as photos.
 | `/start` | Help |
 | `/new`   | Forget the conversation and start fresh |
 | `/stop`  | Interrupt the running task and drop any queued messages |
+| `/model` | Show the current model with buttons to switch; `/model <id>` switches directly |
+| `/effort`| Show the current reasoning effort with buttons for the levels the model supports; `/effort <level>` sets it |
 
 Messages sent while a task runs are queued and handled in order (one agent
 turn per chat at a time). Conversations survive restarts: chat → session IDs
 are stored in `.state/sessions.json` and resumed. Messages sent while the bot
 was offline are dropped on startup, so stale commands don't run in your browser.
+
+### Model and effort
+
+The model list is not hardcoded: `/model` fetches it from Anthropic's
+`GET /v1/models` with your `CLAUDE_CODE_OAUTH_TOKEN` (sent only to
+api.anthropic.com), so new models appear on their own. Each model's supported
+effort levels come from the same response, limited to the levels the installed
+Agent SDK accepts. The list is cached for 24h in `.state/models_cache.json`; if
+it can't be fetched, the last cached list is used, and with no list at all
+`/model <id>` still accepts any `claude-...` id.
+
+The choice is bot-wide and saved in `.state/settings.json` (defaults:
+`ASIDE_BOT_MODEL` / `ASIDE_BOT_EFFORT`). A change applies from the next message
+and keeps the conversation: the chat's agent is reconnected, resuming the same
+session with the new `--model` / `--effort`. A task that is already running
+finishes with the old setting. If the new model doesn't support the chosen
+effort, the nearest lower supported level is used (or effort is omitted for
+models without effort support), and the bot tells you.
 
 ## Layout
 
@@ -77,6 +98,7 @@ src/aside_telegram/
   agent.py       # Agent core (no Telegram): ClaudeSDKClient + aside MCP
   auth.py        # Subscription-only env for the Claude CLI subprocess
   config.py      # .env loading and validation
+  models.py      # /v1/models discovery (model list, effort levels, cache)
   formatting.py  # 4096-char splitting, Markdown -> Telegram HTML
   bot.py         # Telegram handlers, per-chat locks, progress, photos
   plugin/        # Local Claude Code plugin carrying the agent's skills

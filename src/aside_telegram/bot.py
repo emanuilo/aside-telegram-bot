@@ -6,17 +6,27 @@ import asyncio
 import contextlib
 import io
 import json
+import re
 import time
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from loguru import logger
-from telegram import LinkPreviewOptions, Message, ReplyParameters, Update
+from telegram import (
+    BotCommand,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    LinkPreviewOptions,
+    Message,
+    ReplyParameters,
+    Update,
+)
 from telegram.constants import ChatAction, ParseMode
 from telegram.error import BadRequest, TelegramError
 from telegram.ext import (
     Application,
     ApplicationBuilder,
+    CallbackQueryHandler,
     CommandHandler,
     ContextTypes,
     MessageHandler,
@@ -26,6 +36,7 @@ from telegram.ext import (
 from .agent import BrowsingAgent, Image, ToolStep, TurnResult, instructions_fingerprint
 from .config import Settings
 from .formatting import SAFE_CHUNK_LEN, TELEGRAM_MAX_LEN, markdown_to_telegram_html, split_message
+from .models import SDK_EFFORT_LEVELS, ModelCatalog, ModelInfo, resolve_effort
 
 MAX_PHOTOS_PER_TURN = 5
 STATUS_EDIT_INTERVAL_S = 2.0
@@ -36,10 +47,68 @@ HELP_TEXT = (
     "I'm a browsing assistant driving your Aside browser.\n\n"
     "Just tell me what to do, e.g. \"open example.com and tell me the heading\".\n\n"
     "/new - start a fresh conversation\n"
-    "/stop - interrupt the current task (and drop queued messages)\n\n"
+    "/stop - interrupt the current task (and drop queued messages)\n"
+    "/model - show or change the Claude model\n"
+    "/effort - show or change the reasoning effort\n\n"
     "I'll ask before doing anything irreversible (purchases, sending messages, "
     "submitting forms, deleting)."
 )
+
+BOT_COMMANDS = [
+    BotCommand("start", "Help"),
+    BotCommand("new", "Start a fresh conversation"),
+    BotCommand("stop", "Interrupt the current task"),
+    BotCommand("model", "Show or change the Claude model"),
+    BotCommand("effort", "Show or change the reasoning effort"),
+]
+CALLBACK_DATA_MAX_BYTES = 64  # Telegram's limit for inline button data
+# Loose check for /model <id> when the model list is unavailable.
+_MODEL_ID_RE = re.compile(r"^claude-[A-Za-z0-9._\[\]-]{1,100}$")
+
+
+# ── Preferences (model / effort) ────────────────────────────────────
+
+
+class PreferenceStore:
+    """Bot-wide model and effort choice, persisted so restarts keep it.
+
+    ``effort`` is the preferred level; the level actually used may be lower
+    (or omitted) when the current model doesn't support it.
+    """
+
+    def __init__(self, path: Path, model: str, effort: str | None) -> None:
+        self.path = path
+        self.model = model
+        self.effort = effort
+        try:
+            raw = json.loads(path.read_text())
+        except FileNotFoundError:
+            raw = {}
+        except (OSError, ValueError) as exc:
+            logger.warning("Ignoring unreadable settings file {}: {}", path, exc)
+            raw = {}
+        if not isinstance(raw, dict):
+            raw = {}
+        if isinstance(raw.get("model"), str) and raw["model"]:
+            self.model = raw["model"]
+        if "effort" in raw and (raw["effort"] is None or raw["effort"] in SDK_EFFORT_LEVELS):
+            self.effort = raw["effort"]
+
+    def update(self, **changes: str | None) -> None:
+        for key, value in changes.items():
+            if key not in ("model", "effort"):
+                raise KeyError(key)
+            setattr(self, key, value)
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = self.path.with_suffix(".tmp")
+        tmp.write_text(json.dumps({"model": self.model, "effort": self.effort}, indent=2))
+        tmp.replace(self.path)
+
+
+def model_callback_data(index: int, model_id: str) -> str:
+    """``m:<id>``, or ``mi:<index>`` if the id would exceed Telegram's 64 bytes."""
+    data = f"m:{model_id}"
+    return data if len(data.encode()) <= CALLBACK_DATA_MAX_BYTES else f"mi:{index}"
 
 
 # ── Session persistence ─────────────────────────────────────────────
@@ -109,17 +178,172 @@ class AsideBot:
         self.state_dir = settings.state_file.parent.resolve()
         self.sessions = SessionStore(settings.state_file)
         self.chats: dict[int, ChatState] = {}
+        # Model/effort are deliberately not part of the fingerprint: a session
+        # resumes fine under a different --model/--effort.
         self.fingerprint = instructions_fingerprint()
+        self.prefs = PreferenceStore(
+            self.state_dir / "settings.json", settings.agent.model, settings.agent.effort
+        )
+        self.catalog = ModelCatalog(settings.agent.oauth_token, self.state_dir / "models_cache.json")
+        self._bg_tasks: set[asyncio.Task] = set()
 
     def _chat(self, chat_id: int) -> ChatState:
         return self.chats.setdefault(chat_id, ChatState())
+
+    # -- model / effort ----------------------------------------------------
+
+    def _model_info(self) -> ModelInfo | None:
+        return self.catalog.get(self.prefs.model)
+
+    def _effective_effort(self) -> str | None:
+        info = self._model_info()
+        return resolve_effort(info.effort_levels if info else None, self.prefs.effort)
+
+    def _agent_config(self):
+        # Fixed cwd so Claude Code stores/resumes sessions in one place.
+        return replace(
+            self.settings.agent,
+            model=self.prefs.model,
+            effort=self._effective_effort(),
+            cwd=self.state_dir,
+        )
+
+    def _agent_is_current(self, agent: BrowsingAgent) -> bool:
+        cfg = self._agent_config()
+        return (agent.config.model, agent.config.effort) == (cfg.model, cfg.effort)
+
+    async def _retire_agent(self, state: ChatState, chat_id: int) -> None:
+        """Close the chat's agent but keep its session, so the next message
+        resumes the same conversation with the current options. Caller must
+        hold the chat lock (or know it is free)."""
+        agent, state.agent = state.agent, None
+        if agent is None:
+            return
+        if agent.session_id:
+            self.sessions.set(chat_id, agent.session_id, self.fingerprint)
+        await agent.close()
+
+    def _is_busy(self, chat_id: int | None) -> bool:
+        """Whether *chat_id* is mid-turn. Agents with outdated options are not
+        closed here: _run_turn reconnects them (resuming the session) before
+        the next turn, which never waits on a running or queued turn."""
+        state = self.chats.get(chat_id) if chat_id is not None else None
+        return state is not None and state.lock.locked()
+
+    def _effort_label(self) -> str:
+        info = self._model_info()
+        effective = self._effective_effort()
+        if info is not None and not info.effort_levels:
+            return "not supported by this model"
+        if effective is None:
+            return "model default"
+        if self.prefs.effort and effective != self.prefs.effort:
+            return f"{effective} (preferred {self.prefs.effort}, not supported by this model)"
+        return effective
+
+    def _model_label(self) -> str:
+        info = self._model_info()
+        return f"{info.display_name} ({info.id})" if info else self.prefs.model
+
+    def _model_text(self, note: str = "") -> str:
+        lines = [f"Model: {self._model_label()}", f"Effort: {self._effort_label()}"]
+        if note:
+            lines += ["", note]
+        lines.append("")
+        if self.catalog.models:
+            lines.append("Tap a model to switch, or send /model <id>.")
+        else:
+            lines.append("Couldn't load the model list right now; send /model <id> to switch.")
+        return "\n".join(lines)
+
+    def _model_keyboard(self) -> InlineKeyboardMarkup | None:
+        if not self.catalog.models:
+            return None
+        rows = [
+            [InlineKeyboardButton(
+                ("✓ " if m.id == self.prefs.model else "") + m.display_name,
+                callback_data=model_callback_data(i, m.id),
+            )]
+            for i, m in enumerate(self.catalog.models)
+        ]
+        return InlineKeyboardMarkup(rows)
+
+    def _effort_levels(self) -> list[str] | None:
+        """Levels offered for the current model ([]: none, None: unknown model)."""
+        info = self._model_info()
+        return list(info.effort_levels) if info else None
+
+    def _effort_text(self, note: str = "") -> str:
+        lines = [f"Model: {self._model_label()}", f"Effort: {self._effort_label()}"]
+        if note:
+            lines += ["", note]
+        levels = self._effort_levels()
+        if levels == []:
+            lines += ["", "This model doesn't support an effort setting."]
+        else:
+            lines += ["", "Tap a level, or send /effort <level>."]
+        return "\n".join(lines)
+
+    def _effort_keyboard(self) -> InlineKeyboardMarkup | None:
+        levels = self._effort_levels()
+        if levels is None:
+            levels = list(SDK_EFFORT_LEVELS)
+        if not levels:
+            return None
+        current = self._effective_effort()
+        return InlineKeyboardMarkup([[
+            InlineKeyboardButton(("✓ " if lv == current else "") + lv, callback_data=f"e:{lv}")
+            for lv in levels
+        ]])
+
+    def _applies_note(self, busy: bool) -> str:
+        if busy:
+            return "A task is running; it finishes with the old setting and the change applies to your next message."
+        return "Applies from your next message; the conversation is kept."
+
+    async def _select_model(self, model_id: str, chat_id: int | None) -> str:
+        """Switch the bot-wide model. Returns a note for the user."""
+        old = self.prefs.model
+        self.prefs.update(model=model_id)
+        info = self._model_info()
+        name = info.display_name if info else model_id
+        notes = []
+        if model_id == old:
+            notes.append(f"Already using {name}.")
+        else:
+            notes.append(f"Switched to {name}.")
+            logger.info("Model changed: {} -> {}", old, model_id)
+        effective = self._effective_effort()
+        if info is not None and not info.effort_levels and self.prefs.effort:
+            notes.append(f"{name} doesn't support effort, so it will be omitted.")
+        elif self.prefs.effort and effective != self.prefs.effort:
+            notes.append(f"{name} doesn't support '{self.prefs.effort}' effort; using '{effective}'.")
+        if model_id != old:
+            notes.append(self._applies_note(self._is_busy(chat_id)))
+        return " ".join(notes)
+
+    async def _select_effort(self, level: str, chat_id: int | None) -> tuple[bool, str]:
+        """Set the preferred effort. Returns (ok, note)."""
+        level = level.strip().lower()
+        levels = self._effort_levels()
+        if level not in SDK_EFFORT_LEVELS:
+            return False, f"Unknown effort '{level}'. Levels: {', '.join(SDK_EFFORT_LEVELS)}."
+        if levels == []:
+            return False, "The current model doesn't support an effort setting."
+        if levels is not None and level not in levels:
+            return False, f"The current model doesn't support '{level}'. Supported: {', '.join(levels)}."
+        before = self._effective_effort()
+        self.prefs.update(effort=level)
+        if before == level:
+            return True, f"Effort is already {level}."
+        logger.info("Effort changed: {} -> {}", before, level)
+        return True, f"Effort set to {level}. " + self._applies_note(self._is_busy(chat_id))
 
     def _new_agent(self, chat_id: int) -> tuple[BrowsingAgent, bool]:
         """Create the chat's agent. The flag is True if a saved session was
         dropped because the agent's instructions changed since it started."""
         self.state_dir.mkdir(parents=True, exist_ok=True)
-        # Fixed cwd so Claude Code stores/resumes sessions in one place.
-        cfg = replace(self.settings.agent, cwd=self.state_dir)
+        cfg = self._agent_config()
         resume = self.sessions.get(chat_id, self.fingerprint)
         stale = resume is None and self.sessions.has(chat_id)
         if stale:
@@ -135,6 +359,7 @@ class AsideBot:
             .token(self.settings.telegram_bot_token)
             # Needed so /stop can run while a message handler is busy.
             .concurrent_updates(True)
+            .post_init(self._post_init)
             .post_shutdown(self._post_shutdown)
             .build()
         )
@@ -142,11 +367,25 @@ class AsideBot:
         app.add_handler(CommandHandler(["start", "help"], self.cmd_start, filters=allowed))
         app.add_handler(CommandHandler("new", self.cmd_new, filters=allowed))
         app.add_handler(CommandHandler("stop", self.cmd_stop, filters=allowed))
+        app.add_handler(CommandHandler("model", self.cmd_model, filters=allowed))
+        app.add_handler(CommandHandler("effort", self.cmd_effort, filters=allowed))
+        # CallbackQueryHandler takes no user filter: on_callback checks the allowlist.
+        app.add_handler(CallbackQueryHandler(self.on_callback))
         app.add_handler(MessageHandler(allowed & filters.TEXT & ~filters.COMMAND, self.on_text))
         # Everyone else (and unsupported message types) lands here.
         app.add_handler(MessageHandler(filters.ALL, self.on_other))
         app.add_error_handler(self.on_error)
         return app
+
+    async def _post_init(self, app: Application) -> None:
+        try:
+            await app.bot.set_my_commands(BOT_COMMANDS)
+        except TelegramError as exc:
+            logger.warning("Could not register the bot command menu: {}", exc)
+        task = asyncio.create_task(self.catalog.refresh())
+        self._bg_tasks.add(task)
+        task.add_done_callback(self._bg_tasks.discard)
+        logger.info("Model={} effort={} (state {})", self.prefs.model, self.prefs.effort, self.state_dir)
 
     async def _post_shutdown(self, app: Application) -> None:
         for state in self.chats.values():
@@ -184,6 +423,79 @@ class AsideBot:
         except Exception as exc:  # noqa: BLE001
             logger.exception("interrupt failed")
             await update.effective_message.reply_text(f"Couldn't interrupt: {exc}")
+
+    async def cmd_model(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        msg = update.effective_message
+        chat_id = update.effective_chat.id if update.effective_chat else None
+        await self.catalog.refresh()
+        arg = " ".join(context.args or []).strip()
+        note = ""
+        if arg:
+            info = self.catalog.resolve(arg)
+            if info is not None:
+                note = await self._select_model(info.id, chat_id)
+            elif not self.catalog.models and _MODEL_ID_RE.match(arg):
+                note = await self._select_model(arg, chat_id)
+            else:
+                await msg.reply_text(f"Unknown model '{arg}'. Send /model to see the available models.")
+                return
+        await msg.reply_text(self._model_text(note), reply_markup=self._model_keyboard())
+
+    async def cmd_effort(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        msg = update.effective_message
+        chat_id = update.effective_chat.id if update.effective_chat else None
+        await self.catalog.refresh()
+        arg = " ".join(context.args or []).strip()
+        note = ""
+        if arg:
+            ok, note = await self._select_effort(arg, chat_id)
+            if not ok:
+                await msg.reply_text(note, reply_markup=self._effort_keyboard())
+                return
+        await msg.reply_text(self._effort_text(note), reply_markup=self._effort_keyboard())
+
+    async def on_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        query = update.callback_query
+        if query is None:
+            return
+        user = update.effective_user
+        if user is None or user.id not in self.settings.allowed_user_ids:
+            logger.warning(
+                "Rejected button press from user id={} username={}",
+                user.id if user else None, user.username if user else None,
+            )
+            with contextlib.suppress(TelegramError):
+                await query.answer("You're not allowed to use this bot.")
+            return
+        chat_id = update.effective_chat.id if update.effective_chat else None
+        data = query.data or ""
+        kind, _, value = data.partition(":")
+        if kind in ("m", "mi"):
+            info = None
+            if kind == "m":
+                info = self.catalog.get(value)
+            elif value.isdigit() and int(value) < len(self.catalog.models):
+                info = self.catalog.models[int(value)]
+            if info is None:
+                await query.answer("That model is no longer available; send /model again.")
+                return
+            note = await self._select_model(info.id, chat_id)
+            await query.answer(f"Model: {info.display_name}")
+            await self._edit_query(query, self._model_text(note), self._model_keyboard())
+        elif kind == "e":
+            ok, note = await self._select_effort(value, chat_id)
+            await query.answer(note[:200] if not ok else f"Effort: {value}")
+            if ok:
+                await self._edit_query(query, self._effort_text(note), self._effort_keyboard())
+        else:
+            await query.answer()
+
+    @staticmethod
+    async def _edit_query(query, text: str, markup: InlineKeyboardMarkup | None) -> None:
+        try:
+            await query.edit_message_text(text, reply_markup=markup)
+        except BadRequest as exc:  # e.g. "message is not modified"
+            logger.debug("edit after button press failed: {}", exc)
 
     async def on_other(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         user = update.effective_user
@@ -223,6 +535,10 @@ class AsideBot:
         self, context: ContextTypes.DEFAULT_TYPE, msg: Message, state: ChatState, chat_id: int
     ) -> None:
         bot = context.bot
+        if state.agent is not None and not self._agent_is_current(state.agent):
+            # /model or /effort changed since this agent started: reconnect,
+            # resuming the same session with the new options.
+            await self._retire_agent(state, chat_id)
         if state.agent is None:
             state.agent, stale = self._new_agent(chat_id)
             if stale:

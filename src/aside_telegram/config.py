@@ -45,7 +45,7 @@ class AgentConfig:
     aside_command: str = DEFAULT_ASIDE_COMMAND
     aside_args: tuple[str, ...] = ("mcp",)
     model: str = DEFAULT_MODEL
-    effort: str = DEFAULT_EFFORT
+    effort: str | None = DEFAULT_EFFORT  # None: let the CLI/model default apply
     oauth_token: str | None = None
     max_turns: int | None = 60
     cwd: Path | None = None
