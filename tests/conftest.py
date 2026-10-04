@@ -1,6 +1,6 @@
 import pytest
 
-from aside_telegram.skills import build_plugin
+from hometabs.skills import build_plugin
 
 FAKE_1PASSWORD = (
     "---\nname: 1password\ndescription: Read this skill when the user uses 1Password.\n"

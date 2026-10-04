@@ -1,4 +1,4 @@
-# Contributing to aside-telegram
+# Contributing to Hometabs
 
 Thanks for your interest in contributing! Here's how to get started.
 
@@ -7,13 +7,14 @@ Thanks for your interest in contributing! Here's how to get started.
 You need [uv](https://docs.astral.sh/uv/). It installs the right Python for you.
 
 ```bash
-git clone https://github.com/emanuilo/aside-telegram-bot.git
-cd aside-telegram-bot
+git clone https://github.com/emanuilo/hometabs.git
+cd hometabs
 uv sync
 ```
 
 To run the bot itself you also need macOS, the Aside Browser with its CLI, a
-Claude subscription and a Telegram bot (see the [README](README.md#quickstart)).
+Claude credential (an Anthropic API key, or a Claude Code login) and a
+Telegram bot (see the [README](README.md#quickstart)).
 Copy the environment template and fill it in:
 
 ```bash
@@ -84,10 +85,10 @@ Use [Conventional Commits](https://www.conventionalcommits.org/) style:
 
 ## Skills
 
-Skills we write live in `src/aside_telegram/plugin/skills/` and are MIT
+Skills we write live in `src/hometabs/plugin/skills/` and are MIT
 licensed like the rest of the code. Don't copy Aside's builtin skills into the
 repo: they are loaded from the user's local Aside install at startup (see
-`ASIDE_SKILLS` in `src/aside_telegram/skills.py`).
+`ASIDE_SKILLS` in `src/hometabs/skills.py`).
 
 ## Reporting Bugs
 
@@ -103,4 +104,4 @@ public issue.
 
 ## Questions?
 
-Open an [issue](https://github.com/emanuilo/aside-telegram-bot/issues).
+Open an [issue](https://github.com/emanuilo/hometabs/issues).

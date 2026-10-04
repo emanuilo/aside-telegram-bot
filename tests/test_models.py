@@ -9,8 +9,9 @@ import httpx
 import pytest
 from claude_agent_sdk import ClaudeAgentOptions
 
-from aside_telegram import models as M
-from aside_telegram.models import ModelCatalog, ModelInfo, parse_models, resolve_effort
+from hometabs import models as M
+from hometabs.auth import select_credential
+from hometabs.models import ModelCatalog, ModelInfo, parse_models, resolve_effort
 
 
 def _effort(*levels, supported=True):
@@ -41,14 +42,34 @@ def test_sdk_levels_come_from_the_sdk_type():
     assert M.SDK_EFFORT_LEVELS[:3] == ("low", "medium", "high")
 
 
+OAUTH = select_credential(None, "tok")
+API_KEY = select_credential("key", None)
+
+
 def test_headers_use_bearer_oauth():
-    h = M.build_headers("tok")
+    h = M.build_headers(OAUTH)
     assert h == {
         "Authorization": "Bearer tok",
         "anthropic-version": "2023-06-01",
         "anthropic-beta": "oauth-2025-04-20",
     }
     assert "x-api-key" not in h
+
+
+def test_headers_use_x_api_key():
+    h = M.build_headers(API_KEY)
+    assert h == {"x-api-key": "key", "anthropic-version": "2023-06-01"}
+    assert "Authorization" not in h and "anthropic-beta" not in h
+
+
+def test_headers_prefer_api_key_when_both_set():
+    h = M.build_headers(select_credential("key", "tok"))
+    assert h["x-api-key"] == "key" and "Authorization" not in h
+
+
+def test_headers_refuse_local_login():
+    with pytest.raises(ValueError):
+        M.build_headers(select_credential(None, None))
 
 
 def test_parse_sorts_newest_first_and_filters_effort():
@@ -89,7 +110,7 @@ def test_fetch_paginates_and_sends_oauth_headers():
 
     async def go():
         async with _client(pages, calls) as client:
-            return await M.fetch_models("tok", client=client)
+            return await M.fetch_models(OAUTH, client=client)
 
     models = asyncio.run(go())
     assert [m.id for m in models] == ["b", "a"]
@@ -102,11 +123,28 @@ def test_fetch_paginates_and_sends_oauth_headers():
     assert calls[1].url.params["after_id"] == "a"
 
 
+def test_fetch_sends_api_key_headers():
+    calls = []
+    pages = {None: {"data": [_entry("a", "2026-01-01T00:00:00Z")], "has_more": False}}
+
+    async def go():
+        async with _client(pages, calls) as client:
+            return await M.fetch_models(API_KEY, client=client)
+
+    assert [m.id for m in asyncio.run(go())] == ["a"]
+    (req,) = calls
+    assert req.url.host == "api.anthropic.com"
+    assert req.headers["x-api-key"] == "key"
+    assert req.headers["anthropic-version"] == M.API_VERSION
+    assert "authorization" not in req.headers
+    assert "anthropic-beta" not in req.headers
+
+
 def test_fetch_raises_on_http_error():
     async def go():
         transport = httpx.MockTransport(lambda r: httpx.Response(401, json={}))
         async with httpx.AsyncClient(transport=transport) as client:
-            await M.fetch_models("bad", client=client)
+            await M.fetch_models(OAUTH, client=client)
 
     with pytest.raises(httpx.HTTPStatusError):
         asyncio.run(go())
@@ -154,7 +192,7 @@ def test_catalog_serves_fresh_cache_without_network(tmp_path, monkeypatch):
         raise AssertionError("network used")
 
     monkeypatch.setattr(M, "fetch_models", boom)
-    cat = ModelCatalog("tok", path)
+    cat = ModelCatalog(None, "tok", path)
     assert [m.id for m in asyncio.run(cat.refresh())] == ["cached"]
 
 
@@ -162,12 +200,12 @@ def test_catalog_fetches_when_stale_and_writes_cache(tmp_path, monkeypatch):
     path = tmp_path / "c.json"
     _write_cache(path, M.CACHE_TTL_SECONDS + 60)
 
-    async def fake(token, client=None):
-        assert token == "tok"
+    async def fake(credential, client=None):
+        assert (credential.mode, credential.secret) == ("oauth_token", "tok")
         return [ModelInfo("fresh", "Fresh", "", ["low"])]
 
     monkeypatch.setattr(M, "fetch_models", fake)
-    cat = ModelCatalog("tok", path)
+    cat = ModelCatalog(None, "tok", path)
     assert cat.models[0].id == "cached"  # stale list known before refresh
     assert [m.id for m in asyncio.run(cat.refresh())] == ["fresh"]
     assert M.read_cache(path)[0].id == "fresh"
@@ -177,19 +215,60 @@ def test_catalog_falls_back_silently(tmp_path, monkeypatch):
     path = tmp_path / "c.json"
     _write_cache(path, M.CACHE_TTL_SECONDS + 60)
 
-    async def fail(token, client=None):
+    async def fail(credential, client=None):
         raise httpx.ConnectError("offline")
 
     monkeypatch.setattr(M, "fetch_models", fail)
-    assert [m.id for m in asyncio.run(ModelCatalog("tok", path).refresh())] == ["cached"]
+    assert [m.id for m in asyncio.run(ModelCatalog(None, "tok", path).refresh())] == ["cached"]
     # No cache at all and no network: empty list, no exception.
-    assert asyncio.run(ModelCatalog("tok", tmp_path / "none.json").refresh()) == []
-    # No token: never tries the network.
-    assert asyncio.run(ModelCatalog(None, tmp_path / "none.json").refresh()) == []
+    assert asyncio.run(ModelCatalog(None, "tok", tmp_path / "none.json").refresh()) == []
+
+
+def test_catalog_uses_api_key_over_oauth(tmp_path, monkeypatch):
+    seen = []
+
+    async def fake(credential, client=None):
+        seen.append((credential.mode, credential.secret))
+        return [ModelInfo("m", "M", "", [])]
+
+    monkeypatch.setattr(M, "fetch_models", fake)
+    asyncio.run(ModelCatalog("key", "tok", tmp_path / "c.json").refresh())
+    assert seen == [("api_key", "key")]
+
+
+def test_catalog_local_login_never_uses_network(tmp_path, monkeypatch):
+    async def boom(*a, **k):
+        raise AssertionError("network used")
+
+    monkeypatch.setattr(M, "fetch_models", boom)
+    for key, tok in ((None, None), ("", "  ")):
+        cat = ModelCatalog(key, tok, tmp_path / "none.json")
+        assert asyncio.run(cat.refresh(force=True)) == []
+
+
+def test_catalog_failure_log_has_no_secrets(tmp_path, monkeypatch):
+    from loguru import logger
+
+    async def fail(credential, client=None):
+        raise httpx.HTTPStatusError(
+            f"401 with {credential.secret}",
+            request=httpx.Request("GET", M.MODELS_URL, headers=M.build_headers(credential)),
+            response=httpx.Response(401),
+        )
+
+    monkeypatch.setattr(M, "fetch_models", fail)
+    lines: list[str] = []
+    handler = logger.add(lambda m: lines.append(str(m)), level="DEBUG")
+    try:
+        asyncio.run(ModelCatalog("sk-secret-key", None, tmp_path / "c.json").refresh())
+    finally:
+        logger.remove(handler)
+    text = "\n".join(lines)
+    assert "HTTPStatusError" in text and "sk-secret-key" not in text
 
 
 def test_resolve_by_id_name_or_unique_prefix(tmp_path):
-    cat = ModelCatalog(None, tmp_path / "x.json")
+    cat = ModelCatalog(None, None, tmp_path / "x.json")
     cat.models = [
         ModelInfo("claude-haiku-4-5-20251001", "Claude Haiku 4.5"),
         ModelInfo("claude-opus-5", "Claude Opus 5"),

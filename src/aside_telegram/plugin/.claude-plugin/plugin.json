@@ -1,5 +1,0 @@
-{
-  "name": "aside-telegram",
-  "version": "0.1.0",
-  "description": "Skills for the aside-telegram browsing agent. Built at startup from this project's skills plus Aside builtin skills copied from the local Aside install."
-}

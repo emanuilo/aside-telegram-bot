@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Renamed the project to **Hometabs**: distribution and console command
+  `hometabs` (`uv run hometabs`, `python -m hometabs`), Python package
+  `hometabs`, repository `github.com/emanuilo/hometabs`.
+- Environment variables `ASIDE_BOT_MODEL` and `ASIDE_BOT_EFFORT` are now
+  `HOMETABS_MODEL` and `HOMETABS_EFFORT` (the old names are no longer read).
+  `ASIDE_COMMAND` and `ASIDE_SKILLS_DIR` are unchanged.
+- The skills plugin is now named `hometabs`, so skills are
+  `hometabs:sign-in` and `hometabs:1password`. Saved conversations started
+  under the old names start fresh once, with a note in the chat.
+- The LaunchAgent example is now `docs/hometabs.plist.example` (label
+  `com.hometabs.bot`, log `~/Library/Logs/hometabs.log`).
+
+### Added
+
+- `ANTHROPIC_API_KEY` support, now the recommended way to authenticate.
+  Precedence: `ANTHROPIC_API_KEY` > `CLAUDE_CODE_OAUTH_TOKEN` > local Claude
+  Code login. Every credential/provider variable is still scrubbed and exactly
+  the chosen one is passed to the Claude CLI; the mode (never the value) is
+  logged at startup. `/model` discovery sends the API key as `x-api-key`.
+
 ## [0.1.0] - 2026-10-03
 
 ### Added
@@ -16,9 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Browser.
 - Mandatory allowlist of Telegram user IDs (`ALLOWED_USER_IDS`); the bot won't
   start without one.
-- Subscription-only billing: `CLAUDE_CODE_OAUTH_TOKEN` from `claude setup-token`
-  or the local Claude Code login. `ANTHROPIC_API_KEY` and other provider
-  credentials are scrubbed.
+- Claude auth with `CLAUDE_CODE_OAUTH_TOKEN` from `claude setup-token` or the
+  local Claude Code login; other credential and provider variables are
+  scrubbed from the environment.
 - Locked-down agent: no shell or file tools, no user settings, CLAUDE.md,
   plugins or other MCP servers; non-approved tools are denied.
 - One persistent conversation per chat, resumed after restarts
@@ -36,5 +58,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`ASIDE_SKILLS_DIR`).
 - Agent instructions ask for confirmation in chat before irreversible actions.
 
-[Unreleased]: https://github.com/emanuilo/aside-telegram-bot/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/emanuilo/aside-telegram-bot/releases/tag/v0.1.0
+[Unreleased]: https://github.com/emanuilo/hometabs/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/emanuilo/hometabs/releases/tag/v0.1.0

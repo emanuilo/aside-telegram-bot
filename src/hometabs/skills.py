@@ -22,7 +22,7 @@ from pathlib import Path
 
 from loguru import logger
 
-PLUGIN_NAME = "aside-telegram"
+PLUGIN_NAME = "hometabs"
 # Manifest + the skills authored in this repo; copied as the plugin's base.
 PLUGIN_TEMPLATE_DIR = Path(__file__).resolve().parent / "plugin"
 # Aside builtin skills the agent may use, by directory name.

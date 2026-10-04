@@ -192,7 +192,7 @@ class BrowsingAgent:
     # -- options --------------------------------------------------------
 
     def build_options(self, resume: str | None) -> ClaudeAgentOptions:
-        env, self.auth_mode = build_cli_env(self.config.oauth_token)
+        env, self.auth_mode = build_cli_env(self.config.api_key, self.config.oauth_token)
         return ClaudeAgentOptions(
             model=self.config.model,
             effort=self.config.effort,  # type: ignore[arg-type]

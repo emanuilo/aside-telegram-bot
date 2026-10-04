@@ -1,6 +1,6 @@
 import pytest
 
-from aside_telegram.formatting import markdown_to_telegram_html, split_message
+from hometabs.formatting import markdown_to_telegram_html, split_message
 
 
 def test_short_message_single_chunk():

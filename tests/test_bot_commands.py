@@ -6,16 +6,16 @@ from types import SimpleNamespace
 
 import pytest
 
-from aside_telegram.agent import BrowsingAgent, TurnResult
-from aside_telegram.bot import (
+from hometabs.agent import BrowsingAgent, TurnResult
+from hometabs.bot import (
     BOT_COMMANDS,
     CALLBACK_DATA_MAX_BYTES,
-    AsideBot,
+    HometabsBot,
     PreferenceStore,
     model_callback_data,
 )
-from aside_telegram.config import AgentConfig, Settings
-from aside_telegram.models import ModelInfo
+from hometabs.config import AgentConfig, Settings
+from hometabs.models import ModelInfo
 
 ALLOWED, STRANGER, CHAT = 1, 2, 100
 
@@ -105,7 +105,7 @@ def bot(tmp_path, aside_skills_dir):
         ),
         state_file=tmp_path / "sessions.json",
     )
-    b = AsideBot(settings)
+    b = HometabsBot(settings)
     b.catalog.models = list(MODELS)
     return b
 
@@ -316,7 +316,7 @@ def test_change_during_running_turn_applies_after_it(bot, monkeypatch):
 def test_fingerprint_ignores_model_and_effort(bot):
     fp = bot.fingerprint
     bot.prefs.update(model="claude-haiku-4-5-20251001", effort="low")
-    assert AsideBot(bot.settings).fingerprint == fp
+    assert HometabsBot(bot.settings).fingerprint == fp
 
 
 def _cli_cmd(cfg, resume=None):
@@ -370,7 +370,7 @@ def test_preferences_defaults_and_bad_file(tmp_path):
 
 
 def test_command_menu_and_help():
-    from aside_telegram.bot import HELP_TEXT
+    from hometabs.bot import HELP_TEXT
 
     assert [c.command for c in BOT_COMMANDS] == ["start", "new", "stop", "model", "effort"]
     assert "/model" in HELP_TEXT and "/effort" in HELP_TEXT
@@ -380,8 +380,5 @@ def test_bot_builds_plugin_in_state_dir(bot, tmp_path):
     assert bot.plugin.path == (tmp_path / "plugin").resolve()
     cfg = bot._agent_config()
     assert cfg.plugin_dir == bot.plugin.path
-    assert cfg.skills == ("aside-telegram:sign-in", "aside-telegram:1password")
-    assert (
-        "Skill(aside-telegram:1password)"
-        in _cli_cmd(cfg)[_cli_cmd(cfg).index("--allowedTools") + 1]
-    )
+    assert cfg.skills == ("hometabs:sign-in", "hometabs:1password")
+    assert "Skill(hometabs:1password)" in _cli_cmd(cfg)[_cli_cmd(cfg).index("--allowedTools") + 1]

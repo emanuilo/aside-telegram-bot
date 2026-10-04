@@ -1,42 +1,47 @@
-# aside-telegram
+# Hometabs
 
-[![CI](https://github.com/emanuilo/aside-telegram-bot/actions/workflows/ci.yml/badge.svg)](https://github.com/emanuilo/aside-telegram-bot/actions/workflows/ci.yml)
+[![CI](https://github.com/emanuilo/hometabs/actions/workflows/ci.yml/badge.svg)](https://github.com/emanuilo/hometabs/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Claude Agent SDK](https://img.shields.io/badge/Claude-Agent%20SDK-blueviolet.svg)](https://pypi.org/project/claude-agent-sdk/)
 
-**A browsing agent in your pocket.** aside-telegram is a Telegram bot that
-hands your messages to a [Claude Agent SDK](https://pypi.org/project/claude-agent-sdk/)
-agent, which drives your real [Aside Browser](https://asidehq.com) through
-Aside's MCP server. Ask it to check an order, read a page or fill in a form from
-your phone; it works in your own browser with your own logins, shows its
-progress step by step, sends screenshots, and asks before doing anything
-irreversible. It runs on your Mac and bills your Claude subscription, not API
-credits.
+**Your personal agent in Telegram, using your real browser and logins.**
+
+Hometabs is a personal AI agent you talk to in Telegram. It works in the
+browser on your Mac at home, with your logins, cookies, bookmarks and password
+manager, so it can do things on any website you can use yourself, including
+the ones no app or integration covers: your local bank, the utility company,
+a government portal. Ask it from your phone to check an order, look something
+up in an account or fill in a form; it shows its progress step by step, sends
+screenshots, and asks before doing anything irreversible.
+
+- **Your real browser.** Works with [Aside Browser](https://asidehq.com): the
+  agent uses your tabs and sessions instead of a fresh cloud browser.
+- **Any website.** If you can do it in your browser, you can ask for it.
+- **Lives in Telegram.** No new app to install on your phone.
+- **Runs on your own Mac.** Open source; nothing in between except Telegram
+  and the Claude API.
+
+Under the hood, Hometabs hands your messages to a
+[Claude Agent SDK](https://pypi.org/project/claude-agent-sdk/) agent, which
+drives the Aside Browser through Aside's MCP server.
 
 ## Disclaimer
 
-This is an unofficial, community project. It is **not affiliated with,
-endorsed by or supported by Anthropic, Aside or Telegram**.
+Hometabs is an unofficial, community project. It is **not affiliated with,
+endorsed by or supported by Anthropic, Aside or Telegram**. Aside, Claude and
+Telegram are trademarks of their respective owners.
 
 The agent acts in **your real browser**, which may be signed in to your
 accounts. AI agents make mistakes and can be manipulated by content on the
 pages they read. **Use it at your own risk** and read [SECURITY.md](SECURITY.md)
 first.
 
-The bot uses your Claude subscription through a token from
-`claude setup-token` (or your local Claude Code login). Make sure your use
-complies with [Anthropic's terms](https://www.anthropic.com/legal) and usage
-policies for your plan.
-
 ## Features
 
 - **Real browser control.** The agent's browser tool is Aside's `repl`
   (Playwright-style JavaScript in your Aside Browser), so it sees your tabs,
   cookies and logins.
-- **Subscription billing only.** Uses `CLAUDE_CODE_OAUTH_TOKEN` or your local
-  Claude Code login. `ANTHROPIC_API_KEY` and other provider credentials are
-  always scrubbed.
 - **Allowlist.** Only the Telegram user IDs you list can use it; it won't start
   without the list.
 - **Locked down.** No shell or file tools, no `~/.claude` settings, CLAUDE.md,
@@ -55,38 +60,57 @@ policies for your plan.
   discovered from Anthropic's API, so new models show up on their own.
 - **Phone-friendly replies.** Markdown converted to Telegram HTML, long replies
   split, screenshots forwarded as photos.
+- **One credential, nothing else.** Uses `ANTHROPIC_API_KEY` (recommended),
+  `CLAUDE_CODE_OAUTH_TOKEN` or your local Claude Code login; every other
+  credential and provider variable is removed from the agent's environment.
 
 ## Requirements
 
 - **macOS** with the [Aside Browser](https://asidehq.com) and its CLI
   installed (`aside mcp` must work).
-- A **Claude subscription** (Pro or Max) and
-  [Claude Code](https://docs.anthropic.com/en/docs/claude-code) to create a
-  token. The Agent SDK bundles the Claude Code CLI it runs.
+- **Claude access**: an [Anthropic API key](https://platform.claude.com/)
+  (recommended), or a Claude Code login (see [Authentication](#authentication)).
+  The Agent SDK bundles the Claude Code CLI it runs.
 - A **Telegram bot** token from [@BotFather](https://t.me/BotFather).
 - [uv](https://docs.astral.sh/uv/) (installs Python 3.10+ for you).
 - Optional: the 1Password browser extension in Aside, for sign-ins.
+
+## Where to run it
+
+The agent works in the Aside Browser on the machine where Hometabs runs, so
+that Mac needs to be on, awake and logged in for the bot to answer.
+
+- **Best:** an always-on Mac, such as a Mac mini on your desk or a spare
+  MacBook kept plugged in. Your agent is then reachable from Telegram any
+  time, wherever you are.
+- **Fine for trying it out:** your everyday laptop. The bot answers while the
+  laptop is awake; when it sleeps, the bot goes quiet. Telegram holds on to
+  messages you send in the meantime, and the bot works through them when the
+  laptop wakes up, so keep that in mind before sending something like "pay
+  this bill" to a sleeping Mac. Messages sent while Hometabs itself wasn't
+  running are different: they are skipped at startup, on purpose, so a stale
+  request doesn't fire hours later.
+
+Tip: to keep a dedicated Mac awake, open System Settings → **Energy** and turn
+on "Prevent automatic sleeping when the display is off" (on a MacBook:
+**Battery** → Options → "Prevent automatic sleeping on power adapter when the
+display is off").
 
 ## Quickstart
 
 1. **Get the code**
 
    ```sh
-   git clone https://github.com/emanuilo/aside-telegram-bot.git
-   cd aside-telegram-bot
+   git clone https://github.com/emanuilo/hometabs.git
+   cd hometabs
    uv sync
    cp .env.example .env
    ```
 
-2. **Claude subscription token**
-
-   ```sh
-   claude setup-token
-   ```
-
-   Put the printed token in `CLAUDE_CODE_OAUTH_TOKEN`. If you leave it empty,
-   the bot falls back to your local Claude Code login (`claude`, then
-   `/login`), which also bills the subscription.
+2. **Claude credential**: create an API key in the
+   [Claude Console](https://platform.claude.com/) and put it in
+   `ANTHROPIC_API_KEY`. See [Authentication](#authentication) for the
+   alternatives.
 
 3. **Telegram bot**: message [@BotFather](https://t.me/BotFather), send
    `/newbot`, and put the token in `TELEGRAM_BOT_TOKEN`.
@@ -98,12 +122,42 @@ policies for your plan.
 5. **Run**
 
    ```sh
-   uv run aside-telegram
-   # or: uv run python -m aside_telegram
+   uv run hometabs
+   # or: uv run python -m hometabs
    ```
 
    Then send your bot something like *"Open example.com and tell me the
    heading"*.
+
+## Authentication
+
+Hometabs picks exactly one Claude credential, in this order:
+
+| Order | Setting | Mode logged at startup |
+|---|---|---|
+| 1 | `ANTHROPIC_API_KEY` | `api_key` |
+| 2 | `CLAUDE_CODE_OAUTH_TOKEN` | `oauth_token` |
+| 3 | neither: your local Claude Code login | `local_login` |
+
+- **API key (recommended).** Create one in the
+  [Claude Console](https://platform.claude.com/); usage is billed to that
+  Console account. Anthropic asks developers building with the Agent SDK to
+  use API key authentication. A dedicated key with a spend limit is a good
+  idea.
+- **Subscription token (optional, personal use).** `claude setup-token`
+  prints a long-lived token for your Claude plan; put it in
+  `CLAUDE_CODE_OAUTH_TOKEN`. Anthropic restricts how Claude.ai plan
+  credentials may be used outside its own apps, so read
+  [Anthropic's authentication and credential use policy](https://code.claude.com/docs/en/legal-and-compliance#authentication-and-credential-use)
+  and check the terms for your plan before you use this.
+- **Local login.** With neither set, the Claude Code CLI uses whatever login
+  it finds on the machine (`claude`, then `/login`). The same terms apply.
+
+If both are set, the API key is used and the startup log says so. Every other
+credential or provider variable (`ANTHROPIC_AUTH_TOKEN`,
+`CLAUDE_CODE_USE_BEDROCK`, `CLAUDE_CODE_USE_VERTEX`,
+`CLAUDE_CODE_USE_FOUNDRY`, and whichever of the two above wasn't chosen) is
+removed before the Claude CLI starts. Credential values are never logged.
 
 ## Configuration
 
@@ -114,11 +168,12 @@ Settings are read from the environment or `.env` (see
 |---|---|---|---|
 | `TELEGRAM_BOT_TOKEN` | yes | | Bot token from @BotFather |
 | `ALLOWED_USER_IDS` | yes | | Comma-separated Telegram user IDs allowed to use the bot |
-| `CLAUDE_CODE_OAUTH_TOKEN` | no | local Claude Code login | Subscription token from `claude setup-token` |
+| `ANTHROPIC_API_KEY` | no | | Anthropic API key (recommended; takes precedence) |
+| `CLAUDE_CODE_OAUTH_TOKEN` | no | local Claude Code login | Token from `claude setup-token` (see [Authentication](#authentication)) |
 | `ASIDE_COMMAND` | no | `aside` on `PATH`, else `~/.local/bin/aside` | Aside CLI, started as `aside mcp` |
 | `ASIDE_SKILLS_DIR` | no | `~/.aside/u/0/skills/builtin` | Where Aside's builtin skills are copied from |
-| `ASIDE_BOT_MODEL` | no | `claude-sonnet-5-5` | Default model (overridden by `/model`) |
-| `ASIDE_BOT_EFFORT` | no | `medium` | Default effort: `low`, `medium`, `high`, `xhigh`, `max` (overridden by `/effort`) |
+| `HOMETABS_MODEL` | no | `claude-sonnet-5-5` | Default model (overridden by `/model`) |
+| `HOMETABS_EFFORT` | no | `medium` | Default effort: `low`, `medium`, `high`, `xhigh`, `max` (overridden by `/effort`) |
 | `STATE_FILE` | no | `.state/sessions.json` | Session store; its directory is the state dir |
 | `LOG_LEVEL` | no | `INFO` | `DEBUG`, `INFO`, `WARNING` or `ERROR` |
 
@@ -145,17 +200,19 @@ under `~/.claude/projects/`.
 | `/effort` | Show the reasoning effort with buttons for the levels the model supports; `/effort <level>` sets it |
 
 Messages sent while a task runs are queued and handled in order (one agent turn
-per chat at a time). Messages sent while the bot was offline are dropped on
+per chat at a time). Messages sent while the bot wasn't running are dropped on
 startup, so stale requests don't run in your browser.
 
 ### Model and effort
 
 The model list isn't hardcoded: `/model` fetches it from Anthropic's
-`GET /v1/models` with your `CLAUDE_CODE_OAUTH_TOKEN` (sent only to
-api.anthropic.com). Each model's supported effort levels come from the same
-response, limited to the levels the installed Agent SDK accepts. If the list
-can't be fetched, the last cached list is used; with no list at all,
-`/model <id>` still accepts any `claude-...` ID.
+`GET /v1/models` with your credential (the API key as `x-api-key`, or the
+OAuth token as a bearer token; sent only to api.anthropic.com). With the local
+Claude Code login there is no credential to send, so no list is fetched. Each
+model's supported effort levels come from the same response, limited to the
+levels the installed Agent SDK accepts. If the list can't be fetched, the last
+cached list is used; with no list at all, `/model <id>` still accepts any
+`claude-...` ID.
 
 The choice is bot-wide and persisted. A change applies from the next message
 and keeps the conversation: the chat's agent reconnects, resuming the same
@@ -183,7 +240,7 @@ flowchart LR
         mcp --> browser
     end
     tg <-->|long polling| bot
-    cli <-->|"HTTPS, subscription token"| anthropic["Anthropic API"]
+    cli <-->|"HTTPS, API key or token"| anthropic["Anthropic API"]
 ```
 
 When you send a message:
@@ -193,8 +250,8 @@ When you send a message:
    queued.
 2. The chat's `BrowsingAgent` is created on first use: it spawns the Claude
    Code CLI with a fixed system prompt, the aside MCP server, the skills plugin
-   and the subscription-only environment, resuming the chat's saved session if
-   there is one.
+   and an environment holding only the chosen Claude credential, resuming the
+   chat's saved session if there is one.
 3. Claude works in a loop, calling the aside `repl` tool to read and act on
    pages. Each tool call updates the "Working… step n" status message (at most
    every 2 seconds).
@@ -211,19 +268,20 @@ the architecture, the message flow and how history is kept.
 
 ## Skills
 
-The agent loads skills only from a local Claude Code plugin the bot builds at
-startup in `.state/plugin/` (passed to the CLI with `--plugin-dir`). Your
-`~/.claude` settings, CLAUDE.md and personal skills and plugins are never
-loaded, and only the plugin's skills are allowlisted.
+The agent loads skills only from a local Claude Code plugin named `hometabs`
+that the bot builds at startup in `.state/plugin/` (passed to the CLI with
+`--plugin-dir`). Your `~/.claude` settings, CLAUDE.md and personal skills and
+plugins are never loaded, and only the plugin's skills are allowlisted.
 
-- **`sign-in`** (shipped with this project, MIT): tells the agent to sign in
-  with the browser's password manager autofill whenever a task needs a login,
-  and how to click 1Password's autofill menu reliably.
+- **`hometabs:sign-in`** (shipped with this project, MIT): tells the agent to
+  sign in with the browser's password manager autofill whenever a task needs a
+  login, and how to click 1Password's autofill menu reliably.
 - **Aside's builtin skills** listed in `ASIDE_SKILLS` in
-  [`src/aside_telegram/skills.py`](src/aside_telegram/skills.py) (currently
-  `1password`) are copied unmodified from your local Aside install
-  (`ASIDE_SKILLS_DIR`). They belong to Aside and are not distributed with
-  this project. If one isn't found, the bot logs a warning and runs without it.
+  [`src/hometabs/skills.py`](src/hometabs/skills.py) (currently `1password`,
+  loaded as `hometabs:1password`) are copied unmodified from your local Aside
+  install (`ASIDE_SKILLS_DIR`). They belong to Aside and are not distributed
+  with this project. If one isn't found, the bot logs a warning and runs
+  without it.
 
 Because the plugin is rebuilt on every start, an Aside update is picked up on
 the next restart (and starts fresh conversations, since the instructions
@@ -236,43 +294,42 @@ The bot gives a Telegram chat control of a logged-in browser. Prompt
 injection from web pages is the main residual risk, and the "ask before
 irreversible actions" rule is an instruction to the model, not an enforced
 control. Use a dedicated browser profile, keep the allowlist tight and keep
-your tokens secret. See [SECURITY.md](SECURITY.md) for the threat model and how
-to report vulnerabilities.
+your tokens and keys secret. See [SECURITY.md](SECURITY.md) for the threat
+model and how to report vulnerabilities.
 
 ## Running as a service
 
 To keep the bot running in the background and start it at login, use a launchd
 LaunchAgent (it must run in your login session, where the Aside Browser runs).
-[`docs/aside-telegram.plist.example`](docs/aside-telegram.plist.example) is a
-template:
+[`docs/hometabs.plist.example`](docs/hometabs.plist.example) is a template:
 
 ```sh
 # Edit the paths in the template first, then:
-cp docs/aside-telegram.plist.example ~/Library/LaunchAgents/local.aside-telegram.plist
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/local.aside-telegram.plist
+cp docs/hometabs.plist.example ~/Library/LaunchAgents/com.hometabs.bot.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.hometabs.bot.plist
 
 # Restart after an update / stop it:
-launchctl kickstart -k gui/$(id -u)/local.aside-telegram
-launchctl bootout gui/$(id -u)/local.aside-telegram
+launchctl kickstart -k gui/$(id -u)/com.hometabs.bot
+launchctl bootout gui/$(id -u)/com.hometabs.bot
 ```
 
-Run only one instance per bot token: Telegram allows a single long-polling
-client.
+Logs go to `~/Library/Logs/hometabs.log`. Run only one instance per bot token:
+Telegram allows a single long-polling client.
 
 ## Development
 
 ```sh
 uv sync
-uv run pytest               # tests (no network, tokens, Aside or Telegram needed)
+uv run pytest               # tests (no network, keys, Aside or Telegram needed)
 uv run ruff check           # lint
 uv run ruff format          # format
 ```
 
 ```
-src/aside_telegram/
+src/hometabs/
   __init__.py    # entry point: logging, config, env scrubbing, polling
   agent.py       # agent core (no Telegram): ClaudeSDKClient + aside MCP
-  auth.py        # subscription-only env for the Claude CLI subprocess
+  auth.py        # credential choice and the scrubbed env for the Claude CLI
   bot.py         # Telegram handlers, per-chat locks, progress, /model, /effort
   config.py      # .env loading and validation
   formatting.py  # message splitting, Markdown -> Telegram HTML

@@ -1,12 +1,14 @@
-"""Discover the Claude models the user's subscription can reach.
+"""Discover the Claude models the configured credential can reach.
 
 Anthropic's ``GET /v1/models`` lists every model available to a credential,
 each with a capability tree that says which effort levels it accepts. The
 ``/model`` and ``/effort`` commands are built from it, so a newly released
 model shows up without a code change.
 
-Auth is the Claude subscription OAuth token (``CLAUDE_CODE_OAUTH_TOKEN``),
-sent as a bearer token to api.anthropic.com only. The list is cached in the
+Auth follows :func:`hometabs.auth.select_credential`: an API key is sent as
+``x-api-key``, an OAuth token (``CLAUDE_CODE_OAUTH_TOKEN``) as a bearer token,
+both to api.anthropic.com only. With neither (local Claude Code login) there
+is no credential to send, so no request is made. The list is cached in the
 state dir for a day; any failure falls back to the last cached list (even a
 stale one), or to an empty list, never to an exception.
 
@@ -26,6 +28,8 @@ from typing import Any
 import httpx
 from claude_agent_sdk import ClaudeAgentOptions
 from loguru import logger
+
+from .auth import AUTH_MODE_API_KEY, AUTH_MODE_OAUTH, Credential, select_credential
 
 MODELS_URL = "https://api.anthropic.com/v1/models"
 API_VERSION = "2023-06-01"
@@ -76,17 +80,22 @@ class ModelInfo:
 # ── Request / response ──────────────────────────────────────────────
 
 
-def build_headers(oauth_token: str) -> dict[str, str]:
-    """Headers for /v1/models with a subscription OAuth token.
+def build_headers(credential: Credential) -> dict[str, str]:
+    """Headers for /v1/models matching the credential type.
 
-    An OAuth token must go in ``Authorization: Bearer``; sent as ``x-api-key``
-    it is rejected with 401.
+    The two are not interchangeable: an OAuth token must go in
+    ``Authorization: Bearer`` (sent as ``x-api-key`` it is rejected with 401),
+    and an API key goes in ``x-api-key`` with no OAuth beta header.
     """
-    return {
-        "Authorization": f"Bearer {oauth_token}",
-        "anthropic-version": API_VERSION,
-        "anthropic-beta": OAUTH_BETA,
-    }
+    headers = {"anthropic-version": API_VERSION}
+    if credential.mode == AUTH_MODE_API_KEY and credential.secret:
+        headers["x-api-key"] = credential.secret
+    elif credential.mode == AUTH_MODE_OAUTH and credential.secret:
+        headers["Authorization"] = f"Bearer {credential.secret}"
+        headers["anthropic-beta"] = OAUTH_BETA
+    else:
+        raise ValueError("No Claude credential to call /v1/models with")
+    return headers
 
 
 def effort_levels(capabilities: dict[str, Any]) -> list[str]:
@@ -130,18 +139,17 @@ def parse_models(entries: list[dict[str, Any]]) -> list[ModelInfo]:
 
 
 async def fetch_models(
-    oauth_token: str, client: httpx.AsyncClient | None = None
+    credential: Credential, client: httpx.AsyncClient | None = None
 ) -> list[ModelInfo]:
     """Fetch every model page from /v1/models. Raises on any failure."""
+    headers = build_headers(credential)
     own = client is None
     client = client or httpx.AsyncClient(timeout=REQUEST_TIMEOUT, follow_redirects=False)
     entries: list[dict[str, Any]] = []
     params: dict[str, Any] = {"limit": PAGE_LIMIT}
     try:
         for _ in range(MAX_PAGES):
-            response = await client.get(
-                MODELS_URL, headers=build_headers(oauth_token), params=params
-            )
+            response = await client.get(MODELS_URL, headers=headers, params=params)
             response.raise_for_status()
             payload = response.json()
             entries.extend(payload.get("data") or [])
@@ -193,8 +201,10 @@ def write_cache(path: Path, models: list[ModelInfo]) -> None:
 class ModelCatalog:
     """The model list, fetched lazily and cached on disk for a day."""
 
-    def __init__(self, oauth_token: str | None, cache_path: Path) -> None:
-        self._token = (oauth_token or "").strip() or None
+    def __init__(self, api_key: str | None, oauth_token: str | None, cache_path: Path) -> None:
+        cred = select_credential(api_key, oauth_token)
+        # None in local_login mode: there is no credential to send.
+        self._credential: Credential | None = cred if cred.secret else None
         self.cache_path = cache_path
         # Last known list (possibly stale) so lookups never need the network.
         self.models: list[ModelInfo] = read_cache(cache_path, max_age=None) or []
@@ -206,10 +216,10 @@ class ModelCatalog:
             if cached:
                 self.models = cached
                 return cached
-        if self._token is None:
+        if self._credential is None:
             return self.models
         try:
-            models = await fetch_models(self._token)
+            models = await fetch_models(self._credential)
         except Exception as exc:  # noqa: BLE001 - never log the request (headers)
             logger.warning("Could not fetch the model list: {}", type(exc).__name__)
             return self.models

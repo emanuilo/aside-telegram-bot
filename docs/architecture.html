@@ -1,4 +1,4 @@
-<title>Aside Telegram Bot</title>
+<title>Hometabs</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
@@ -75,14 +75,14 @@ td:first-child { font-weight: 600; white-space: nowrap; }
 
 <div class="wrap">
   <header>
-    <span class="eyebrow">aside-telegram · how it fits together</span>
-    <h1>Aside Telegram Bot</h1>
-    <p class="lede">A Telegram chat in front of a Claude Agent SDK agent that drives your Aside Browser through the aside MCP. Everything except Telegram and the model runs on your Mac.</p>
+    <span class="eyebrow">Hometabs · how it fits together</span>
+    <h1>Hometabs</h1>
+    <p class="lede">Your personal agent in Telegram: a Claude Agent SDK agent that drives your Aside Browser, with your logins, through the aside MCP. Everything except Telegram and the model runs on your Mac.</p>
   </header>
 
   <dl class="facts">
     <div><dt>Model</dt><dd>claude-sonnet-5-5 · effort medium by default, switchable with /model and /effort</dd></div>
-    <div><dt>Billing</dt><dd>Claude subscription via CLAUDE_CODE_OAUTH_TOKEN</dd></div>
+    <div><dt>Claude auth</dt><dd>ANTHROPIC_API_KEY (recommended), else CLAUDE_CODE_OAUTH_TOKEN, else the local Claude Code login</dd></div>
     <div><dt>Agent tools</dt><dd>mcp__aside__repl + Skill (sign-in, 1Password)</dd></div>
     <div><dt>Who can use it</dt><dd>User IDs in ALLOWED_USER_IDS</dd></div>
   </dl>
@@ -91,7 +91,7 @@ td:first-child { font-weight: 600; white-space: nowrap; }
     <h2>Architecture</h2>
     <figure>
       <div class="scroll">
-        <svg viewBox="0 0 980 560" role="img" aria-label="Your phone talks to the Telegram Bot API. On your Mac, the Python bot long-polls Telegram, hands text to the agent core, which spawns the Claude Code CLI. The CLI calls the Anthropic API with your subscription token and spawns the aside MCP, which drives the Aside Browser.">
+        <svg viewBox="0 0 980 560" role="img" aria-label="Your phone talks to the Telegram Bot API. On your Mac, the Python bot long-polls Telegram, hands text to the agent core, which spawns the Claude Code CLI. The CLI calls the Anthropic API with your API key or token and spawns the aside MCP, which drives the Aside Browser.">
           <defs>
             <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="context-stroke"/></marker>
           </defs>
@@ -110,7 +110,7 @@ td:first-child { font-weight: 600; white-space: nowrap; }
           <!-- Anthropic, outside the Mac -->
           <rect class="box" x="720" y="16" width="230" height="58" rx="8" style="stroke:var(--claude)"/>
           <text class="t" x="835" y="40" text-anchor="middle">Anthropic API</text>
-          <text class="s" x="835" y="58" text-anchor="middle">billed to your Claude plan</text>
+          <text class="s" x="835" y="58" text-anchor="middle">Claude models</text>
 
           <!-- Mac boundary -->
           <rect class="zone" x="368" y="100" width="596" height="440" rx="12"/>
@@ -118,7 +118,7 @@ td:first-child { font-weight: 600; white-space: nowrap; }
 
           <!-- Python process -->
           <rect class="soft" x="380" y="140" width="250" height="280" rx="10"/>
-          <text class="m" x="394" y="160">aside-telegram (python)</text>
+          <text class="m" x="394" y="160">hometabs (python)</text>
 
           <rect class="box" x="396" y="172" width="218" height="62" rx="6"/>
           <text class="t" x="410" y="194">bot.py</text>
@@ -132,8 +132,8 @@ td:first-child { font-weight: 600; white-space: nowrap; }
 
           <rect class="box" x="396" y="340" width="218" height="62" rx="6"/>
           <text class="t" x="410" y="362">auth.py</text>
-          <text class="s" x="410" y="379">removes ANTHROPIC_API_KEY</text>
-          <text class="s" x="410" y="394">injects only the OAuth token</text>
+          <text class="s" x="410" y="379">scrubs every credential var</text>
+          <text class="s" x="410" y="394">injects only the chosen one</text>
 
           <line class="edge" x1="505" y1="234" x2="505" y2="254" marker-end="url(#a)"/>
           <text class="lbl" x="513" y="248">ask(text)</text>
@@ -180,7 +180,7 @@ td:first-child { font-weight: 600; white-space: nowrap; }
 
           <!-- CLI <-> Anthropic -->
           <line class="edge cl" x1="835" y1="138" x2="835" y2="76" marker-start="url(#a)" marker-end="url(#a)"/>
-          <text class="lbl tcl" x="845" y="92">HTTPS · OAuth token</text>
+          <text class="lbl tcl" x="845" y="92">HTTPS · API key or token</text>
           <text class="s" x="845" y="126">the model runs there</text>
 
           <!-- CLI -> aside -->
@@ -194,7 +194,7 @@ td:first-child { font-weight: 600; white-space: nowrap; }
           <text class="lbl" x="675" y="478" text-anchor="middle">resume id</text>
         </svg>
       </div>
-      <figcaption>The orange path is the only one that leaves your Mac for Claude, and it carries your subscription token. Telegram (blue) only ever sees chat text and the final reply. The bot polls Telegram, so no port is opened on your machine.</figcaption>
+      <figcaption>The orange path is the only one that leaves your Mac for Claude, and it carries the one credential the bot chose. Telegram (blue) only ever sees chat text and the final reply. The bot polls Telegram, so no port is opened on your machine.</figcaption>
     </figure>
   </section>
 
@@ -342,7 +342,7 @@ td:first-child { font-weight: 600; white-space: nowrap; }
           <rect class="box" x="430" y="166" width="280" height="88" rx="8"/>
           <text class="t" x="444" y="188">Transcript &lt;session id&gt;.jsonl</text>
           <text class="m" x="444" y="206">~/.claude/projects/</text>
-          <text class="m" x="444" y="221">…-aside-telegram--state/</text>
+          <text class="m" x="444" y="221">…-hometabs--state/</text>
           <text class="s" x="444" y="240">one JSON line per message, never deleted</text>
 
           <!-- Outside column -->

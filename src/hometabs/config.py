@@ -7,7 +7,7 @@ import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from dotenv import load_dotenv
+from dotenv import find_dotenv, load_dotenv
 
 DEFAULT_ASIDE_COMMAND = shutil.which("aside") or str(Path.home() / ".local/bin/aside")
 # Where Aside keeps its builtin skills (profile 0); see skills.py.
@@ -48,7 +48,10 @@ class AgentConfig:
     aside_args: tuple[str, ...] = ("mcp",)
     model: str = DEFAULT_MODEL
     effort: str | None = DEFAULT_EFFORT  # None: let the CLI/model default apply
-    oauth_token: str | None = None
+    # Claude credentials; see auth.select_credential for the precedence.
+    # Kept out of repr so a logged config never shows them.
+    api_key: str | None = field(default=None, repr=False)
+    oauth_token: str | None = field(default=None, repr=False)
     max_turns: int | None = 60
     cwd: Path | None = None
     # Source of Aside's builtin skills, copied into the plugin at startup.
@@ -60,7 +63,7 @@ class AgentConfig:
 
 @dataclass(frozen=True)
 class Settings:
-    telegram_bot_token: str
+    telegram_bot_token: str = field(repr=False)
     allowed_user_ids: frozenset[int]
     agent: AgentConfig = field(default_factory=AgentConfig)
     state_file: Path = Path(".state/sessions.json")
@@ -72,11 +75,20 @@ def _path_env(name: str, default: Path) -> Path:
 
 
 def load_agent_config(env_file: str | os.PathLike | None = None) -> AgentConfig:
-    load_dotenv(env_file, override=False)
+    if env_file is None:
+        # Look for .env from the working directory up. python-dotenv's default
+        # searches from this module's directory instead, which would pick up
+        # a source checkout's .env no matter where the bot was started.
+        # (load_dotenv(None) would fall back to that search, so only call it
+        # when a file was found.)
+        env_file = find_dotenv(usecwd=True) or None
+    if env_file is not None:
+        load_dotenv(env_file, override=False)
     return AgentConfig(
         aside_command=os.environ.get("ASIDE_COMMAND") or DEFAULT_ASIDE_COMMAND,
-        model=os.environ.get("ASIDE_BOT_MODEL") or DEFAULT_MODEL,
-        effort=os.environ.get("ASIDE_BOT_EFFORT") or DEFAULT_EFFORT,
+        model=os.environ.get("HOMETABS_MODEL") or DEFAULT_MODEL,
+        effort=os.environ.get("HOMETABS_EFFORT") or DEFAULT_EFFORT,
+        api_key=(os.environ.get("ANTHROPIC_API_KEY") or "").strip() or None,
         oauth_token=(os.environ.get("CLAUDE_CODE_OAUTH_TOKEN") or "").strip() or None,
         aside_skills_dir=_path_env("ASIDE_SKILLS_DIR", DEFAULT_ASIDE_SKILLS_DIR),
     )

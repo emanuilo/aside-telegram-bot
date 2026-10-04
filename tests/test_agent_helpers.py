@@ -1,12 +1,12 @@
 import base64
 
-from aside_telegram.agent import (
+from hometabs.agent import (
     REPL_TOOL,
     BrowsingAgent,
     extract_images,
     summarize_tool_input,
 )
-from aside_telegram.config import AgentConfig
+from hometabs.config import AgentConfig
 
 
 def test_extract_images_both_shapes():
@@ -35,9 +35,7 @@ def test_summarize_tool_input():
         == "Opening example.com"
     )
     assert summarize_tool_input("mcp__other__t", {}) == "other__t"
-    assert (
-        summarize_tool_input("Skill", {"skill": "aside-telegram:1password"}) == "skill: 1password"
-    )
+    assert summarize_tool_input("Skill", {"skill": "hometabs:1password"}) == "skill: 1password"
 
 
 def test_options_lock_down_tools():
@@ -51,6 +49,20 @@ def test_options_lock_down_tools():
     assert opts.mcp_servers["aside"]["command"] == "/bin/aside"
     assert opts.env["CLAUDE_CODE_OAUTH_TOKEN"] == "tok"
     assert "ANTHROPIC_API_KEY" not in opts.env
+    assert agent.auth_mode == "oauth_token"
+
+
+def test_options_inject_only_the_api_key_when_both_are_set():
+    agent = BrowsingAgent(AgentConfig(api_key="key", oauth_token="tok"))
+    opts = agent.build_options(resume=None)
+    assert opts.env["ANTHROPIC_API_KEY"] == "key"
+    assert "CLAUDE_CODE_OAUTH_TOKEN" not in opts.env
+    assert agent.auth_mode == "api_key"
+
+
+def test_agent_config_repr_hides_credentials():
+    text = repr(AgentConfig(api_key="secret-key", oauth_token="secret-token"))
+    assert "secret-key" not in text and "secret-token" not in text
 
 
 def _agent_with_plugin(plugin):
@@ -62,7 +74,7 @@ def test_options_load_only_plugin_skills(plugin):
     opts = _agent_with_plugin(plugin).build_options(resume=None)
     assert opts.setting_sources == []  # no ~/.claude settings, CLAUDE.md, user skills/plugins
     assert opts.plugins == [{"type": "local", "path": str(plugin.path)}]
-    assert opts.skills == ["aside-telegram:sign-in", "aside-telegram:1password"]
+    assert opts.skills == ["hometabs:sign-in", "hometabs:1password"]
 
 
 def test_options_without_plugin_allow_no_skills():
@@ -83,7 +95,7 @@ def test_cli_command_for_skills(plugin):
 
     assert flag("--tools") == "Skill"
     assert flag("--allowedTools") == (
-        f"{REPL_TOOL},Skill(aside-telegram:sign-in),Skill(aside-telegram:1password)"
+        f"{REPL_TOOL},Skill(hometabs:sign-in),Skill(hometabs:1password)"
     )
     assert flag("--plugin-dir") == str(plugin.path)
     assert "--setting-sources=" in cmd

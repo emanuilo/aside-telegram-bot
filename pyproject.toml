@@ -1,7 +1,7 @@
 [project]
-name = "aside-telegram"
+name = "hometabs"
 version = "0.1.0"
-description = "A Telegram bot that drives your Aside Browser with a Claude Agent SDK browsing agent"
+description = "Your personal agent in Telegram, using your real browser and logins (works with Aside Browser)"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
@@ -12,10 +12,11 @@ requires-python = ">=3.10"
 keywords = [
     "telegram",
     "telegram-bot",
+    "personal-agent",
+    "browser-agent",
+    "browser-automation",
     "claude",
     "claude-agent-sdk",
-    "browser-automation",
-    "aside",
     "mcp",
     "ai-agent",
 ]
@@ -43,12 +44,12 @@ dependencies = [
 ]
 
 [project.urls]
-Repository = "https://github.com/emanuilo/aside-telegram-bot"
-Issues = "https://github.com/emanuilo/aside-telegram-bot/issues"
-Changelog = "https://github.com/emanuilo/aside-telegram-bot/blob/main/CHANGELOG.md"
+Repository = "https://github.com/emanuilo/hometabs"
+Issues = "https://github.com/emanuilo/hometabs/issues"
+Changelog = "https://github.com/emanuilo/hometabs/blob/main/CHANGELOG.md"
 
 [project.scripts]
-aside-telegram = "aside_telegram:main"
+hometabs = "hometabs:main"
 
 [build-system]
 requires = ["uv_build>=0.8.19,<0.9.0"]
@@ -86,4 +87,4 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["aside_telegram"]
+known-first-party = ["hometabs"]

@@ -1,6 +1,6 @@
 # Security Policy
 
-aside-telegram gives a Telegram chat control of a real, logged-in web browser.
+Hometabs gives a Telegram chat control of a real, logged-in web browser.
 Please read this before running it.
 
 ## Threat model
@@ -44,12 +44,15 @@ and in the Claude Code session transcripts on your machine.
 - Keep `ALLOWED_USER_IDS` to your own account(s), and protect that Telegram
   account (passcode, two-step verification).
 - **Keep tokens secret.** `TELEGRAM_BOT_TOKEN` lets anyone impersonate the bot;
-  `CLAUDE_CODE_OAUTH_TOKEN` gives access to your Claude subscription. Keep them
-  only in `.env` (git-ignored) with restrictive permissions (`chmod 600 .env`),
-  never in logs, issues or screenshots. If one leaks, revoke it (BotFather
-  `/revoke`; regenerate with `claude setup-token`).
-- `ANTHROPIC_API_KEY` and other provider credentials are scrubbed from the
-  bot's environment, but don't rely on that as a secret store.
+  `ANTHROPIC_API_KEY` lets anyone use Claude on your Anthropic Console account;
+  `CLAUDE_CODE_OAUTH_TOKEN` gives access to your Claude plan. Keep them only in
+  `.env` (git-ignored) with restrictive permissions (`chmod 600 .env`), never
+  in logs, issues or screenshots. If one leaks, revoke it (BotFather
+  `/revoke`; delete the key in the Claude Console; regenerate with
+  `claude setup-token`). Consider a dedicated API key with a spend limit.
+- The bot removes every credential and provider variable from its own
+  environment and passes only the chosen one to the Claude CLI. It logs which
+  kind is used, never the value. Don't rely on this as a secret store.
 - Watch what the agent does: progress messages show each browser step, and
   `/stop` interrupts a running task.
 - The `.state/` directory and Claude Code's transcripts (under
@@ -60,7 +63,7 @@ and in the Claude Code session transcripts on your machine.
 
 Please **do not open a public issue** for security problems. Report them
 privately through GitHub's
-[security advisories](https://github.com/emanuilo/aside-telegram-bot/security/advisories/new)
+[security advisories](https://github.com/emanuilo/hometabs/security/advisories/new)
 ("Report a vulnerability" on the Security tab). Include what you found, how to
 reproduce it and its impact. You should get a reply within a few days, and
 we'll coordinate a fix and disclosure with you.

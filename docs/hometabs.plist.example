@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  Example launchd LaunchAgent for aside-telegram.
+  Example launchd LaunchAgent for Hometabs.
 
-  1. Replace every /path/to/aside-telegram-bot with the absolute path of your
+  1. Replace every /path/to/hometabs with the absolute path of your
      checkout (after `uv sync`), and YOUR_USER with your macOS user name.
-  2. Copy to ~/Library/LaunchAgents/local.aside-telegram.plist
-  3. launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/local.aside-telegram.plist
+  2. Copy to ~/Library/LaunchAgents/com.hometabs.bot.plist
+  3. launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.hometabs.bot.plist
 
   It runs in your login session, where the Aside Browser runs. Configuration
   is read from .env in WorkingDirectory. launchd's PATH is minimal: if `aside`
@@ -15,15 +15,15 @@
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>local.aside-telegram</string>
+  <string>com.hometabs.bot</string>
 
   <key>ProgramArguments</key>
   <array>
-    <string>/path/to/aside-telegram-bot/.venv/bin/aside-telegram</string>
+    <string>/path/to/hometabs/.venv/bin/hometabs</string>
   </array>
 
   <key>WorkingDirectory</key>
-  <string>/path/to/aside-telegram-bot</string>
+  <string>/path/to/hometabs</string>
 
   <key>EnvironmentVariables</key>
   <dict>
@@ -44,8 +44,8 @@
   <integer>30</integer>
 
   <key>StandardOutPath</key>
-  <string>/Users/YOUR_USER/Library/Logs/aside-telegram.log</string>
+  <string>/Users/YOUR_USER/Library/Logs/hometabs.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/YOUR_USER/Library/Logs/aside-telegram.log</string>
+  <string>/Users/YOUR_USER/Library/Logs/hometabs.log</string>
 </dict>
 </plist>

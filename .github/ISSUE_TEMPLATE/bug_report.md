@@ -14,7 +14,7 @@ A clear description of the bug.
 **Expected behavior**
 
 **Environment**
-- aside-telegram version / commit:
+- Hometabs version / commit:
 - macOS version:
 - Python version:
 - Aside version (`aside --version`):

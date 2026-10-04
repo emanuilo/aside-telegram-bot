@@ -173,7 +173,7 @@ class ChatState:
     epoch: int = 0
 
 
-class AsideBot:
+class HometabsBot:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
         self.state_dir = settings.state_file.parent.resolve()
@@ -190,7 +190,7 @@ class AsideBot:
             self.state_dir / "settings.json", settings.agent.model, settings.agent.effort
         )
         self.catalog = ModelCatalog(
-            settings.agent.oauth_token, self.state_dir / "models_cache.json"
+            settings.agent.api_key, settings.agent.oauth_token, self.state_dir / "models_cache.json"
         )
         self._bg_tasks: set[asyncio.Task] = set()
 
